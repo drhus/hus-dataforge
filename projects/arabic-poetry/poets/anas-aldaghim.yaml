@@ -1,0 +1,22 @@
+name_ar: أنس الدغيم
+name_en: Anas al-Daghim
+full_name_ar: أنس إبراهيم الدغيم
+aliases:
+  - الشاعر أنس الدغيم
+  - أنس إبراهيم الدغيم
+country: Syria
+born: 1979-07-08
+birthplace: Jarjanaz / Maarrat al-Numan
+sources:
+  poetsgate: 5998                    # https://poetsgate.com/poet.php?pt=5998
+                                     # organized as 6+ Dewans — needs multi-level crawl
+  poetspedia: أنس-الدغيم
+  adab: anasaldogheim                # JS-rendered, defer
+  aldiwan_user: anasaldogheim        # /user/anasaldogheim is a profile, no listing
+                                     # individual poems exist (e.g. poem98867.html, poem98766.html)
+                                     # but no aggregated index — defer
+  telegram_channel: EqbalAnas        # https://t.me/EqbalAnas
+  x_handle: anasaldogheim            # <10K followers → syndication empty
+  instagram: anas.doghem             # no anonymous API
+  facebook_page_id: "61550286617564" # Graph API only
+  youtube_channel: UChUyt6oZ0QYpG9pTVIgseFg

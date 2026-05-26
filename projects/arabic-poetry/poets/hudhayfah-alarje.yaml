@@ -1,0 +1,14 @@
+name_ar: حذيفة العرجي
+name_en: Hudhayfah al-Arji
+aliases:
+  - الشاعر العرجي
+  - ح. العرجي
+country: Syria
+born: 1988
+sources:
+  aldiwan: alarje                    # https://www.aldiwan.net/cat-poet-alarje
+  poetsgate: 5991                    # https://poetsgate.com/poet.php?pt=5991
+  poetspedia: حذيفة-العرجي
+  telegram_channel: el_arje          # https://t.me/el_arje
+  x_handle: al_arje                  # <10K followers → syndication API returns empty
+  aljazeera: al_arje

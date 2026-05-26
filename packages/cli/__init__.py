@@ -63,5 +63,34 @@ def scrape_list() -> None:
         typer.echo(p.slug)
 
 
+@app.command(name="telegram-login")
+def telegram_login() -> None:
+    """One-time interactive login for the Telegram MTProto spider.
+
+    Reads /home/agent/.config/dataforge/telegram.env for api_id/hash,
+    prompts for your phone + the code Telegram sends to your account,
+    then writes a reusable .session file."""
+    from telethon import TelegramClient
+
+    from packages.engine.spiders.telegram_mtproto import _load_creds
+
+    creds = _load_creds()
+    api_id = int(creds["TELEGRAM_API_ID"])
+    api_hash = creds["TELEGRAM_API_HASH"]
+    session = creds.get("TELEGRAM_SESSION_PATH") or "/home/agent/.config/dataforge/telegram"
+    if session.endswith(".session"):
+        session = session[:-8]
+    if api_hash == "__SET_ME__":
+        typer.echo("Set TELEGRAM_API_HASH in /home/agent/.config/dataforge/telegram.env first.")
+        raise typer.Exit(1)
+
+    typer.echo(f"Using session at {session}.session")
+    client = TelegramClient(session, api_id, api_hash)
+    client.start()  # interactive prompt for phone + code
+    me = client.get_me()
+    typer.echo(f"Logged in as {me.first_name} (@{me.username}, id={me.id}).")
+    client.disconnect()
+
+
 if __name__ == "__main__":
     app()

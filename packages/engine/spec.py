@@ -19,7 +19,14 @@ class FieldSpec:
 @dataclass
 class SourceSpec:
     name: str
-    type: Literal["paginated", "fixture", "list_detail", "telegram_web", "x_syndication"]
+    type: Literal[
+        "paginated",
+        "fixture",
+        "list_detail",
+        "telegram_web",
+        "telegram_mtproto",
+        "x_syndication",
+    ]
     record_selector: str
     fields: dict[str, FieldSpec]
 
@@ -75,13 +82,19 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             continue
         name = s.get("name") or f"source-{i}"
         stype = s.get("type")
-        if stype not in ("paginated", "fixture", "list_detail", "telegram_web", "x_syndication"):
+        if stype not in (
+            "paginated",
+            "fixture",
+            "list_detail",
+            "telegram_web",
+            "telegram_mtproto",
+            "x_syndication",
+        ):
             raise SpecError(
-                f"source {name!r}: type must be one of "
-                f"paginated|fixture|list_detail|telegram_web|x_syndication (got {stype!r})"
+                f"source {name!r}: unknown spider type {stype!r}"
             )
         # social spiders have a fixed output schema — record_selector/fields not required
-        social_types = ("telegram_web", "x_syndication")
+        social_types = ("telegram_web", "telegram_mtproto", "x_syndication")
         rec_sel = s.get("record_selector") or ("" if stype in social_types else None)
         if rec_sel is None:
             raise SpecError(f"source {name!r}: record_selector is required")
@@ -127,11 +140,18 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
                 raise SpecError(
                     f"source {name!r}: telegram_web needs `channel: <name>` or list_url"
                 )
+        elif stype == "telegram_mtproto":
+            channel = s.get("channel")
+            if not channel:
+                raise SpecError(f"source {name!r}: telegram_mtproto needs `channel: <username>`")
+            src.fixture_path = channel
+            src.rate_limit_sec = float(s.get("rate_limit_sec", 0.0))
+            mr = s.get("max_records")
+            src.max_records = int(mr) if mr is not None else 1000
         elif stype == "x_syndication":
             handle = s.get("handle")
             if not handle:
                 raise SpecError(f"source {name!r}: x_syndication needs `handle: <screen_name>`")
-            # reuse fixture_path slot to carry the handle through SourceSpec
             src.fixture_path = handle
             src.rate_limit_sec = float(s.get("rate_limit_sec", 5.0))
             mr = s.get("max_records")

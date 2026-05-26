@@ -1,9 +1,9 @@
 template: poetry
-poet:
-  name_ar: حذيفة العرجي
-  aldiwan_slug: alarje
-  telegram_channel: el_arje
-  x_handle: al_arje
+poets:
+- slug: hudhayfah-alarje
+  manifest: poets/hudhayfah-alarje.yaml
+- slug: anas-aldaghim
+  manifest: poets/anas-aldaghim.yaml
 sources:
 - name: aldiwan-alarje
   type: list_detail
@@ -11,7 +11,6 @@ sources:
   list_link_selector: a[href^="poem"]
   base_url: https://www.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 3
   record_selector: body
   fields:
     title:
@@ -24,11 +23,13 @@ sources:
       join_with: '
 
         '
-    poet_link:
-      selector: a[href*="cat-poet-"]
-      attr: href
 - name: telegram-el-arje
   type: telegram_web
   channel: el_arje
   rate_limit_sec: 1.5
-  max_records: 50
+  max_records: 500
+- name: telegram-eqbal-anas
+  type: telegram_web
+  channel: EqbalAnas
+  rate_limit_sec: 1.5
+  max_records: 500
