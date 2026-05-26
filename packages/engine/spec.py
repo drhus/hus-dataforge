@@ -19,7 +19,7 @@ class FieldSpec:
 @dataclass
 class SourceSpec:
     name: str
-    type: Literal["paginated", "fixture", "list_detail"]
+    type: Literal["paginated", "fixture", "list_detail", "telegram_web", "x_syndication"]
     record_selector: str
     fields: dict[str, FieldSpec]
 
@@ -75,16 +75,20 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             continue
         name = s.get("name") or f"source-{i}"
         stype = s.get("type")
-        if stype not in ("paginated", "fixture", "list_detail"):
+        if stype not in ("paginated", "fixture", "list_detail", "telegram_web", "x_syndication"):
             raise SpecError(
-                f"source {name!r}: type must be one of paginated|fixture|list_detail (got {stype!r})"
+                f"source {name!r}: type must be one of "
+                f"paginated|fixture|list_detail|telegram_web|x_syndication (got {stype!r})"
             )
-        rec_sel = s.get("record_selector")
-        if not rec_sel:
+        # social spiders have a fixed output schema — record_selector/fields not required
+        social_types = ("telegram_web", "x_syndication")
+        rec_sel = s.get("record_selector") or ("" if stype in social_types else None)
+        if rec_sel is None:
             raise SpecError(f"source {name!r}: record_selector is required")
-        fields = {k: _field_from_raw(v) for k, v in (s.get("fields") or {}).items()}
-        if not fields:
+        fields_raw = s.get("fields") or {}
+        if not fields_raw and stype not in social_types:
             raise SpecError(f"source {name!r}: at least one field is required")
+        fields = {k: _field_from_raw(v) for k, v in fields_raw.items()}
 
         src = SourceSpec(name=name, type=stype, record_selector=rec_sel, fields=fields)
 
@@ -101,7 +105,7 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             src.fixture_path = s.get("fixture_path")
             if not src.fixture_path:
                 raise SpecError(f"source {name!r}: fixture_path required for fixture type")
-        else:  # list_detail
+        elif stype == "list_detail":
             src.list_url = s.get("list_url")
             src.list_link_selector = s.get("list_link_selector")
             src.base_url = s.get("base_url") or src.list_url
@@ -113,6 +117,25 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
                 raise SpecError(
                     f"source {name!r}: list_detail needs list_url and list_link_selector"
                 )
+        elif stype == "telegram_web":
+            channel = s.get("channel")
+            src.list_url = s.get("list_url") or (f"https://t.me/s/{channel}" if channel else None)
+            src.rate_limit_sec = float(s.get("rate_limit_sec", 1.0))
+            mr = s.get("max_records")
+            src.max_records = int(mr) if mr is not None else 200
+            if not src.list_url:
+                raise SpecError(
+                    f"source {name!r}: telegram_web needs `channel: <name>` or list_url"
+                )
+        elif stype == "x_syndication":
+            handle = s.get("handle")
+            if not handle:
+                raise SpecError(f"source {name!r}: x_syndication needs `handle: <screen_name>`")
+            # reuse fixture_path slot to carry the handle through SourceSpec
+            src.fixture_path = handle
+            src.rate_limit_sec = float(s.get("rate_limit_sec", 5.0))
+            mr = s.get("max_records")
+            src.max_records = int(mr) if mr is not None else None
 
         sources.append(src)
 

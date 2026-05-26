@@ -2,6 +2,8 @@ template: poetry
 poet:
   name_ar: حذيفة العرجي
   aldiwan_slug: alarje
+  telegram_channel: el_arje
+  x_handle: al_arje
 sources:
 - name: aldiwan-alarje
   type: list_detail
@@ -25,3 +27,8 @@ sources:
     poet_link:
       selector: a[href*="cat-poet-"]
       attr: href
+- name: telegram-el-arje
+  type: telegram_web
+  channel: el_arje
+  rate_limit_sec: 1.5
+  max_records: 50
