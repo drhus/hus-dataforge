@@ -85,6 +85,21 @@ def export(slug: str) -> None:
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+@app.command(name="push")
+def push(
+    slug: str,
+    repo: str | None = typer.Option(None, help="HF dataset repo (default <user>/<slug>)"),
+    public: bool = typer.Option(False, "--public", help="Push as public dataset (default: private)"),
+) -> None:
+    """Push the exported dataset to HuggingFace Hub. Requires HUGGINGFACE_TOKEN."""
+    import json
+
+    from packages.export.push import push_to_hub
+
+    result = push_to_hub(slug, repo_id=repo, private=not public)
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 @app.command(name="telegram-login")
 def telegram_login() -> None:
     """One-time interactive login for the Telegram MTProto spider.
