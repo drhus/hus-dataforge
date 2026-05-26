@@ -30,6 +30,12 @@ export default async function ProjectDetail({
             updated {new Date(project.updated_at).toLocaleString()}
           </div>
         </div>
+        <Link
+          href={`/projects/${project.slug}/data`}
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        >
+          Browse data →
+        </Link>
       </div>
 
       <section className="space-y-2">

@@ -23,12 +23,14 @@ class SourceSpec:
         "paginated",
         "fixture",
         "list_detail",
+        "multi_level_list_detail",
         "telegram_web",
         "telegram_mtproto",
         "x_syndication",
     ]
     record_selector: str
     fields: dict[str, FieldSpec]
+    poet: str | None = None  # poet-slug this source belongs to (for cleaning/attribution)
 
     # paginated
     url_template: str | None = None
@@ -38,9 +40,10 @@ class SourceSpec:
     # fixture (relative to project dir)
     fixture_path: str | None = None
 
-    # list_detail
+    # list_detail / multi_level_list_detail
     list_url: str | None = None
     list_link_selector: str | None = None
+    sub_link_selector: str | None = None  # multi_level only
     link_attr: str = "href"
     base_url: str | None = None  # for resolving relative links
     max_records: int | None = None
@@ -86,6 +89,7 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             "paginated",
             "fixture",
             "list_detail",
+            "multi_level_list_detail",
             "telegram_web",
             "telegram_mtproto",
             "x_syndication",
@@ -103,7 +107,9 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             raise SpecError(f"source {name!r}: at least one field is required")
         fields = {k: _field_from_raw(v) for k, v in fields_raw.items()}
 
-        src = SourceSpec(name=name, type=stype, record_selector=rec_sel, fields=fields)
+        src = SourceSpec(
+            name=name, type=stype, record_selector=rec_sel, fields=fields, poet=s.get("poet")
+        )
 
         if stype == "paginated":
             src.url_template = s.get("url_template")
@@ -129,6 +135,20 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             if not src.list_url or not src.list_link_selector:
                 raise SpecError(
                     f"source {name!r}: list_detail needs list_url and list_link_selector"
+                )
+        elif stype == "multi_level_list_detail":
+            src.list_url = s.get("list_url")
+            src.list_link_selector = s.get("list_link_selector")
+            src.sub_link_selector = s.get("sub_link_selector")
+            src.base_url = s.get("base_url") or src.list_url
+            src.link_attr = s.get("link_attr", "href")
+            src.rate_limit_sec = float(s.get("rate_limit_sec", 1.0))
+            mr = s.get("max_records")
+            src.max_records = int(mr) if mr is not None else None
+            if not (src.list_url and src.list_link_selector and src.sub_link_selector):
+                raise SpecError(
+                    f"source {name!r}: multi_level_list_detail needs list_url, "
+                    "list_link_selector, and sub_link_selector"
                 )
         elif stype == "telegram_web":
             channel = s.get("channel")

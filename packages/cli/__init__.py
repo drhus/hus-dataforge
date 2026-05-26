@@ -63,6 +63,17 @@ def scrape_list() -> None:
         typer.echo(p.slug)
 
 
+@app.command(name="clean")
+def clean(slug: str) -> None:
+    """Run the cleaning pipeline for a project (raw → clean JSONL per poet)."""
+    import json
+
+    from packages.pipeline import run_clean
+
+    result = run_clean(slug)
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 @app.command(name="telegram-login")
 def telegram_login() -> None:
     """One-time interactive login for the Telegram MTProto spider.

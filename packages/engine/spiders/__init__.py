@@ -1,6 +1,7 @@
 from packages.engine.spiders.base import Spider
 from packages.engine.spiders.fixture import FixtureSpider
 from packages.engine.spiders.list_detail import ListDetailSpider
+from packages.engine.spiders.multi_level_list_detail import MultiLevelListDetailSpider
 from packages.engine.spiders.paginated import PaginatedSpider
 from packages.engine.spiders.telegram_mtproto import TelegramMTProtoSpider
 from packages.engine.spiders.telegram_web import TelegramWebSpider
@@ -10,6 +11,7 @@ REGISTRY: dict[str, type[Spider]] = {
     "paginated": PaginatedSpider,
     "fixture": FixtureSpider,
     "list_detail": ListDetailSpider,
+    "multi_level_list_detail": MultiLevelListDetailSpider,
     "telegram_web": TelegramWebSpider,
     "telegram_mtproto": TelegramMTProtoSpider,
     "x_syndication": XSyndicationSpider,
@@ -20,6 +22,7 @@ __all__ = [
     "PaginatedSpider",
     "FixtureSpider",
     "ListDetailSpider",
+    "MultiLevelListDetailSpider",
     "TelegramWebSpider",
     "TelegramMTProtoSpider",
     "XSyndicationSpider",

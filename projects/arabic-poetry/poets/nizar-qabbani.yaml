@@ -1,0 +1,18 @@
+name_ar: نزار قباني
+name_en: Nizar Qabbani
+country: Syria
+born: 1923
+died: 1998
+notes: |
+  Major modern-era poet. Diplomat. Not "live" — no official social
+  presence. Telegram channels are fan-run aggregators (likely reposting
+  from other sources, so high duplication expected — useful for dedup
+  cross-validation, not as a primary source).
+sources:
+  aldiwan: nizar-qabbani             # https://www.aldiwan.net/cat-poet-nizar-qabbani  (493 poems)
+  poetsgate: ""                       # not yet resolved
+  poetspedia: نزار-قباني
+  personal_site: https://nizarq.com  # static; could scrape
+  telegram_aggregator_1: nizar_alQabbani  # https://t.me/nizar_alQabbani (~25k+ messages)
+  telegram_aggregator_2: NoticeNizarQabbani
+  x_aggregator: Niizar_Qabani         # fan account, may have content

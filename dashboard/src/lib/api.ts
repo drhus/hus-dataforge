@@ -32,6 +32,27 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return (await r.json()) as T;
 }
 
+export type DataSource = { name: string; count: number; bytes: number };
+export type DataPage = {
+  project: string;
+  stage: string;
+  source: string;
+  total: number;
+  offset: number;
+  limit: number;
+  records: Record<string, unknown>[];
+};
+export type PoetManifest = {
+  slug: string;
+  name_ar?: string;
+  name_en?: string;
+  country?: string;
+  born?: number | string;
+  died?: number | string;
+  sources?: Record<string, unknown>;
+  notes?: string;
+};
+
 export const api = {
   listProjects: () => req<Project[]>("/projects"),
   getProject: (slug: string) => req<Project>(`/projects/${slug}`),
@@ -55,4 +76,21 @@ export const api = {
       body: JSON.stringify({ project, kind, duration_sec }),
     }),
   getJob: (id: number) => req<Job>(`/jobs/${id}`),
+  listSources: (project: string, stage: "raw" | "clean" | "export") =>
+    req<{ sources: DataSource[] }>(`/data/${project}/sources?stage=${stage}`),
+  listRecords: (
+    project: string,
+    stage: string,
+    source: string,
+    opts: { offset?: number; limit?: number; q?: string } = {},
+  ) => {
+    const qs = new URLSearchParams();
+    if (opts.offset) qs.set("offset", String(opts.offset));
+    if (opts.limit) qs.set("limit", String(opts.limit));
+    if (opts.q) qs.set("q", opts.q);
+    const tail = qs.toString() ? `?${qs.toString()}` : "";
+    return req<DataPage>(`/data/${project}/${stage}/${source}${tail}`);
+  },
+  listPoets: (project: string) =>
+    req<{ poets: PoetManifest[] }>(`/data/${project}/poets`),
 };
