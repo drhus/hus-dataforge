@@ -1,0 +1,90 @@
+"""M4 export tests — small Parquet roundtrip + dataset card generation."""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+
+@pytest.fixture()
+def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("DATAFORGE_PROJECTS_DIR", str(tmp_path / "projects"))
+    monkeypatch.setenv("DATAFORGE_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("DATAFORGE_DB_PATH", str(tmp_path / "data" / "test.db"))
+    for mod in list(sys.modules):
+        if mod.startswith("packages."):
+            del sys.modules[mod]
+    yield tmp_path
+
+
+def _write_clean(slug: str, poet: str, records: list[dict], data_root: Path) -> None:
+    p = data_root / slug / "clean" / f"{poet}.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("w", encoding="utf-8") as fh:
+        for r in records:
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+
+def test_export_writes_parquet_and_card(env: Path):
+    from packages.api import projects_store
+    from packages.export import run_export
+
+    projects_store.create_project("test", {"sources": []})
+    data_root = env / "data"
+    _write_clean(
+        "test",
+        "poet-a",
+        [
+            {"id": "h1", "poet": "poet-a", "title": "T1", "text": "نص ١", "lang": "ar", "source": "s1", "source_kind": "aldiwan", "source_url": "u1", "word_count": 2, "line_count": 1, "meta": {"x": 1}},
+            {"id": "h2", "poet": "poet-a", "title": "T2", "text": "نص ٢", "lang": "ar", "source": "s1", "source_kind": "aldiwan", "source_url": "u2", "word_count": 2, "line_count": 1, "meta": {}},
+        ],
+        data_root,
+    )
+    _write_clean(
+        "test",
+        "poet-b",
+        [
+            {"id": "h3", "poet": "poet-b", "title": None, "text": "tg msg", "lang": "ar", "source": "tg", "source_kind": "telegram", "source_url": "u3", "word_count": 2, "line_count": 1, "meta": {"post_id": 42}},
+        ],
+        data_root,
+    )
+
+    result = run_export("test")
+    assert result["total_rows"] == 3
+    assert result["by_poet"]["poet-a"]["rows"] == 2
+    assert result["by_poet"]["poet-b"]["rows"] == 1
+
+    export_dir = data_root / "test" / "export"
+    assert (export_dir / "poet-a.parquet").exists()
+    assert (export_dir / "poet-b.parquet").exists()
+    readme = (export_dir / "README.md").read_text(encoding="utf-8")
+    assert "license: cc-by-4.0" in readme
+    assert "poet-a" in readme
+    assert "## Schema" in readme
+    stats = json.loads((export_dir / "_stats.json").read_text(encoding="utf-8"))
+    assert stats["total_rows"] == 3
+
+
+def test_parquet_roundtrip(env: Path):
+    import pyarrow.parquet as pq
+
+    from packages.api import projects_store
+    from packages.export import run_export
+
+    projects_store.create_project("rt", {"sources": []})
+    _write_clean(
+        "rt",
+        "p",
+        [{"id": "x", "poet": "p", "text": "محتوى", "meta": {"k": "v"}, "word_count": 1}],
+        env / "data",
+    )
+    run_export("rt")
+    tbl = pq.read_table(env / "data" / "rt" / "export" / "p.parquet")
+    assert tbl.num_rows == 1
+    cols = set(tbl.column_names)
+    assert "text" in cols and "meta_json" in cols
+    row = tbl.to_pylist()[0]
+    assert row["text"] == "محتوى"
+    assert json.loads(row["meta_json"]) == {"k": "v"}

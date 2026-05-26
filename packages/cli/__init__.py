@@ -74,6 +74,17 @@ def clean(slug: str) -> None:
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+@app.command(name="export")
+def export(slug: str) -> None:
+    """Export clean records to per-poet Parquet + HF dataset card."""
+    import json
+
+    from packages.export import run_export
+
+    result = run_export(slug)
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 @app.command(name="telegram-login")
 def telegram_login() -> None:
     """One-time interactive login for the Telegram MTProto spider.
