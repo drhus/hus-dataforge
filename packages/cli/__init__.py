@@ -41,5 +41,27 @@ def init(
     typer.echo(yaml.safe_dump(p.config, sort_keys=False, allow_unicode=True))
 
 
+@app.command(name="scrape")
+def scrape(
+    slug: str = typer.Argument(..., help="Project slug to scrape"),
+) -> None:
+    """Run all configured sources for a project synchronously (no queue)."""
+    from packages.engine import run_scrape
+
+    result = run_scrape(slug)
+    import json
+
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+@app.command(name="scrape-list")
+def scrape_list() -> None:
+    """List projects available to scrape."""
+    from packages.api import projects_store
+
+    for p in projects_store.list_projects():
+        typer.echo(p.slug)
+
+
 if __name__ == "__main__":
     app()

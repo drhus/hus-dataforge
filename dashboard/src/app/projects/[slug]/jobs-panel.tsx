@@ -80,6 +80,7 @@ export function JobsPanel({ slug }: { slug: string }) {
                 <th className="text-left px-3 py-2 font-medium">ID</th>
                 <th className="text-left px-3 py-2 font-medium">Kind</th>
                 <th className="text-left px-3 py-2 font-medium">Status</th>
+                <th className="text-left px-3 py-2 font-medium">Progress</th>
                 <th className="text-left px-3 py-2 font-medium">Updated</th>
               </tr>
             </thead>
@@ -95,6 +96,9 @@ export function JobsPanel({ slug }: { slug: string }) {
                       {j.status}
                     </span>
                   </td>
+                  <td className="px-3 py-2 text-xs">
+                    <JobProgress message={j.message} />
+                  </td>
                   <td className="px-3 py-2 text-xs text-zinc-500">
                     {new Date(j.updated_at).toLocaleTimeString()}
                   </td>
@@ -105,5 +109,35 @@ export function JobsPanel({ slug }: { slug: string }) {
         </div>
       )}
     </section>
+  );
+}
+
+type ProgressBlob = {
+  source?: string | null;
+  pages?: number;
+  records?: number;
+  last_url?: string | null;
+};
+
+function JobProgress({ message }: { message: string | null }) {
+  if (!message) return <span className="text-zinc-400">—</span>;
+  let blob: ProgressBlob | null = null;
+  try {
+    blob = JSON.parse(message);
+  } catch {
+    return <span className="text-zinc-500">{message}</span>;
+  }
+  if (!blob) return <span className="text-zinc-400">—</span>;
+  return (
+    <div className="space-y-0.5">
+      <div className="font-mono">
+        {blob.records ?? 0} records · {blob.pages ?? 0} pages
+      </div>
+      {blob.last_url && (
+        <div className="text-zinc-500 truncate max-w-[16rem]" title={blob.last_url}>
+          {blob.last_url}
+        </div>
+      )}
+    </div>
   );
 }

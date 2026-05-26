@@ -1,2 +1,27 @@
+template: poetry
+poet:
+  name_ar: حذيفة العرجي
+  aldiwan_slug: alarje
 sources:
-- qafiyah.com
+- name: aldiwan-alarje
+  type: list_detail
+  list_url: https://www.aldiwan.net/cat-poet-alarje
+  list_link_selector: a[href^="poem"]
+  base_url: https://www.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 3
+  record_selector: body
+  fields:
+    title:
+      selector: h2
+      attr: text
+    verses:
+      selector: h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    poet_link:
+      selector: a[href*="cat-poet-"]
+      attr: href

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from packages.api import projects_store
 from packages.api.db import Job, get_session
-from packages.api.jobs_runner import run_stub
+from packages.api.jobs_runner import run_scrape, run_stub
 from packages.api.projects_store import ProjectError
 from packages.api.queue import get_queue, get_redis
 
@@ -92,9 +92,12 @@ def enqueue_job(body: JobIn, session: Session = Depends(get_session)):
     session.commit()
 
     try:
-        rq_job = get_queue().enqueue(
-            run_stub, body.project, body.kind, body.duration_sec, job_timeout=600
-        )
+        if body.kind == "scrape":
+            rq_job = get_queue().enqueue(run_scrape, body.project, job.id, job_timeout=3600)
+        else:
+            rq_job = get_queue().enqueue(
+                run_stub, body.project, body.kind, body.duration_sec, job_timeout=600
+            )
         job.rq_job_id = rq_job.id
         job.status = "queued"
     except Exception as e:
