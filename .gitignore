@@ -18,8 +18,9 @@ dashboard/node_modules/
 dashboard/.next/
 dashboard/out/
 
-# Data (runtime, not committed)
-data/
+# Data (runtime, not committed) — anchored so it does NOT swallow
+# nested directories named "data/" inside the dashboard or elsewhere.
+/data/
 *.jsonl
 *.parquet
 
