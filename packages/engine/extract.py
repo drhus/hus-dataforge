@@ -12,7 +12,10 @@ def parse(html: str) -> LexborHTMLParser:
 
 def _node_value(node: LexborNode, attr: str) -> str | None:
     if attr == "text":
-        return node.text(strip=True) or None
+        # Use \n as separator so <br> and block-level tags preserve line breaks —
+        # critical for poetry, where each verse is on its own line. For single-line
+        # h2/h3 elements this is a no-op.
+        return node.text(separator="\n", strip=True) or None
     if attr == "html":
         return node.html
     return node.attributes.get(attr)

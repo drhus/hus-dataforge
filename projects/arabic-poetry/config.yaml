@@ -20,12 +20,8 @@ sources:
       selector: h2
       attr: text
     verses:
-      selector: h3
+      selector: div.bet-1
       attr: text
-      multi: true
-      join_with: '
-
-        '
 - name: aldiwan-qabbani
   type: list_detail
   poet: nizar-qabbani
@@ -39,12 +35,8 @@ sources:
       selector: h2
       attr: text
     verses:
-      selector: h3
+      selector: div.bet-1
       attr: text
-      multi: true
-      join_with: '
-
-        '
 - name: telegram-el-arje
   type: telegram_web
   poet: hudhayfah-alarje
