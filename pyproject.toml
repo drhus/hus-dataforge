@@ -1,0 +1,44 @@
+[project]
+name = "hus-dataforge"
+version = "0.1.0"
+description = "Universal scraping → cleaning → packaging pipeline for LLM training datasets"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Husam Abboud", email = "husam@drhus.com" }
+]
+
+dependencies = [
+    "scrapy>=2.11",
+    "playwright>=1.40",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "typer>=0.12",
+    "redis>=5.0",
+    "rq>=1.16",
+    "datasets>=2.19",
+    "ftfy>=6.2",
+    "langdetect>=1.0",
+    "datasketch>=1.6",
+    "huggingface-hub>=0.23",
+    "pyyaml>=6.0",
+    "rich>=13.7",
+]
+
+[project.scripts]
+dataforge = "packages.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
