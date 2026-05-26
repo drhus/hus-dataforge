@@ -30,8 +30,9 @@ log = logging.getLogger(__name__)
 ARABIC_RE = re.compile(r"[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]")
 
 # Aldiwan breadcrumb noise — title field captures the chain like
-# "الديوان»سوريا»حذيفة العرجي»قصيدة النصر". We want the last segment.
-ALDIWAN_BREADCRUMB = re.compile(r"^الديوان.*?»([^»]+)$")
+# "الديوان»سوريا»حذيفة العرجي»قصيدة النصر". With the engine's new \n-aware
+# text extractor these can also arrive multi-line like "\nالديوان\n»\nسوريا\n…".
+# Normalise whitespace first, then take the last »-separated segment.
 
 # Aldiwan h3 chrome at the bottom of poem pages — once we hit one of these
 # strings in the verses field, drop everything after.
@@ -78,10 +79,14 @@ def _strip_chrome(text: str | None) -> str:
 def _clean_title(title: str | None) -> str | None:
     if not title:
         return None
-    title = ftfy.fix_text(title).strip()
-    m = ALDIWAN_BREADCRUMB.match(title)
-    if m:
-        return m.group(1).strip()
+    title = ftfy.fix_text(title)
+    # collapse all whitespace (incl. newlines from the \n-separator extractor)
+    title = re.sub(r"\s+", " ", title).strip()
+    if title.startswith("الديوان") and "»" in title:
+        # take last segment of the breadcrumb chain
+        last = title.rsplit("»", 1)[-1].strip()
+        if last:
+            return last
     return title
 
 

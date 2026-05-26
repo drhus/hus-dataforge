@@ -7,21 +7,6 @@ poets:
 - slug: nizar-qabbani
   manifest: poets/nizar-qabbani.yaml
 sources:
-- name: aldiwan-alarje
-  type: list_detail
-  poet: hudhayfah-alarje
-  list_url: https://www.aldiwan.net/cat-poet-alarje
-  list_link_selector: a[href^="poem"]
-  base_url: https://www.aldiwan.net/
-  rate_limit_sec: 3.5
-  record_selector: body
-  fields:
-    title:
-      selector: h2
-      attr: text
-    verses:
-      selector: div.bet-1
-      attr: text
 - name: aldiwan-qabbani
   type: list_detail
   poet: nizar-qabbani
@@ -37,21 +22,3 @@ sources:
     verses:
       selector: div.bet-1
       attr: text
-- name: telegram-el-arje
-  type: telegram_web
-  poet: hudhayfah-alarje
-  channel: el_arje
-  rate_limit_sec: 1.0
-  max_records: 5000
-- name: telegram-eqbal-anas
-  type: telegram_web
-  poet: anas-aldaghim
-  channel: EqbalAnas
-  rate_limit_sec: 1.0
-  max_records: 5000
-- name: telegram-nizar-aggregator
-  type: telegram_web
-  poet: nizar-qabbani
-  channel: nizar_alQabbani
-  rate_limit_sec: 1.0
-  max_records: 2000
