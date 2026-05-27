@@ -337,3 +337,54 @@ def list_poets(project: str):
     backward compat with the dashboard project page."""
     subs = _load_subject_manifests(project)
     return {"project": project, "poets": subs}
+
+
+@router.post("/{project}/subjects/{subject}/epub")
+def build_subject_epub(project: str, subject: str):
+    """Build a readable Arabic EPUB book for a single subject.
+    Synchronous — typically <1s for a few thousand poems.
+
+    Returns the export path + size; the dashboard then links the user to
+    the static-file download endpoint."""
+    _safe_segment(project)
+    _safe_segment(subject)
+    from packages.epub import build_epub
+
+    try:
+        out = build_epub(project, subject)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"epub build failed: {e}")
+    return {
+        "project": project,
+        "subject": subject,
+        "out": out.name,
+        "url": f"/data/{project}/export/{out.name}/download",
+        "size": out.stat().st_size,
+    }
+
+
+@router.get("/{project}/export/{filename}/download")
+def download_export_file(project: str, filename: str):
+    """Serve a file from data/<project>/export/ — used by the dashboard's
+    EPUB / Parquet / README download buttons. Defends against path traversal
+    by rejecting any filename with `/` or `..`."""
+    from fastapi.responses import FileResponse
+
+    _safe_segment(project)
+    if "/" in filename or ".." in filename or filename.startswith("."):
+        raise HTTPException(status_code=400, detail="invalid filename")
+    path = DATA_DIR / project / "export" / filename
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"no export file: {filename}")
+    # Pick a sensible Content-Type
+    suffix = path.suffix.lower()
+    media = {
+        ".epub": "application/epub+zip",
+        ".parquet": "application/octet-stream",
+        ".md": "text/markdown; charset=utf-8",
+        ".json": "application/json",
+        ".jsonl": "application/x-ndjson",
+    }.get(suffix, "application/octet-stream")
+    return FileResponse(path, media_type=media, filename=path.name)

@@ -286,4 +286,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ actions }),
     }),
+  buildSubjectEpub: (project: string, subject: string) =>
+    req<{ project: string; subject: string; out: string; url: string; size: number }>(
+      `/data/${project}/subjects/${subject}/epub`,
+      { method: "POST" },
+    ),
 };

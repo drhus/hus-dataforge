@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { ConfigEditor } from "./config-editor";
 import { JobsPanel } from "./jobs-panel";
+import { SubjectEpubButton } from "./subject-epub-button";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,9 @@ export default async function ProjectDetail({
                     ))}
                   </div>
                 )}
+                <div className="pt-1 flex justify-end">
+                  <SubjectEpubButton project={slug} subject={p.slug} />
+                </div>
               </li>
               );
             })}

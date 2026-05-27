@@ -173,3 +173,86 @@ def test_parquet_roundtrip(env: Path):
     row = tbl.to_pylist()[0]
     assert row["text"] == "محتوى"
     assert json.loads(row["meta_json"]) == {"k": "v"}
+
+
+def test_epub_build_round_trip(env: Path):
+    """Build an EPUB from clean records — verify it's a valid zip with the
+    right structure, embedded language, and Arabic content."""
+    import zipfile
+    from packages.api import projects_store
+    from packages.epub import build_epub
+
+    projects_store.create_project("ep", {"sources": []})
+    # Drop a manifest (subjects/ dir)
+    sdir = env / "projects" / "ep" / "subjects"
+    sdir.mkdir(parents=True, exist_ok=True)
+    (sdir / "poet-a.yaml").write_text(
+        "name_ar: حذيفة\nname_en: Hudhayfah\ncountry: Syria\nborn: 1988\n",
+        encoding="utf-8",
+    )
+
+    _write_clean(
+        "ep",
+        "poet-a",
+        [
+            {"id": "h1", "poet": "poet-a", "title": "قصيدة الأولى",
+             "text": "بيت من شعر\nوبيت ثاني", "word_count": 4, "line_count": 2},
+            {"id": "h2", "poet": "poet-a", "title": None,
+             "text": "بيت من شعر بدون عنوان", "word_count": 4, "line_count": 1,
+             "meta": {"date": "2026-05-01"}},
+        ],
+        env / "data",
+    )
+
+    out = build_epub("ep", "poet-a")
+    assert out.exists()
+    assert out.suffix == ".epub"
+
+    with zipfile.ZipFile(out) as z:
+        names = z.namelist()
+        # Standard EPUB structure
+        assert "mimetype" in names
+        assert "META-INF/container.xml" in names
+        assert any(n.endswith(".opf") for n in names)
+        # Our content
+        assert any("poem-0001" in n for n in names)
+        assert any("poem-0002" in n for n in names)
+        # First poem (titled) is sorted before untitled, so should contain the
+        # title text
+        first = z.read("EPUB/poem-0001.xhtml").decode("utf-8")
+        assert "قصيدة الأولى" in first
+        # Untitled one carries the date chip
+        second = z.read("EPUB/poem-0002.xhtml").decode("utf-8")
+        assert "2026-05-01" in second
+        # Mimetype is byte-for-byte the EPUB magic
+        assert z.read("mimetype") == b"application/epub+zip"
+
+
+def test_epub_endpoint_builds_and_downloads(env: Path):
+    """End-to-end via the API: POST to build, GET to download."""
+    import sys, importlib
+    for mod in list(sys.modules):
+        if mod.startswith("packages."):
+            del sys.modules[mod]
+    from fastapi.testclient import TestClient
+    from packages.api.app import create_app
+    from packages.api import projects_store
+
+    client = TestClient(create_app())
+    client.post("/projects", json={"slug": "epi", "config": {"sources": []}})
+    _write_clean(
+        "epi",
+        "p",
+        [{"id": "x", "poet": "p", "title": "ت", "text": "بيت", "word_count": 1, "line_count": 1}],
+        env / "data",
+    )
+    r = client.post("/data/epi/subjects/p/epub")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["out"].endswith(".epub")
+    assert body["size"] > 0
+
+    d = client.get(body["url"])
+    assert d.status_code == 200
+    assert d.headers["content-type"].startswith("application/epub+zip")
+    assert int(d.headers.get("content-length", "0")) == body["size"]

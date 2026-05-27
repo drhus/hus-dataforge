@@ -106,6 +106,42 @@ def export(slug: str) -> None:
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+@app.command(name="epub")
+def epub_cmd(
+    slug: str,
+    subject: str | None = typer.Argument(
+        None,
+        help="Subject slug (e.g. hudhayfah-alarje). If omitted, build EPUBs for all subjects with a clean JSONL.",
+    ),
+) -> None:
+    """Export a subject's clean JSONL to a readable Arabic EPUB book."""
+    import json
+    from pathlib import Path
+
+    from packages.api.settings import DATA_DIR
+    from packages.epub import build_epub
+
+    if subject:
+        out = build_epub(slug, subject)
+        typer.echo(json.dumps({"out": str(out), "size": out.stat().st_size}, indent=2))
+        return
+
+    # All subjects with a clean JSONL (skip sidecar buckets)
+    clean_dir = Path(DATA_DIR) / slug / "clean"
+    if not clean_dir.exists():
+        raise typer.BadParameter(f"no clean dir for {slug!r}")
+    results = []
+    for jsonl in sorted(clean_dir.glob("*.jsonl")):
+        if "__" in jsonl.stem or jsonl.stem.startswith("_"):
+            continue
+        try:
+            out = build_epub(slug, jsonl.stem)
+            results.append({"subject": jsonl.stem, "out": str(out), "size": out.stat().st_size})
+        except Exception as e:
+            results.append({"subject": jsonl.stem, "error": str(e)})
+    typer.echo(json.dumps({"slug": slug, "built": results}, ensure_ascii=False, indent=2))
+
+
 @app.command(name="push")
 def push(
     slug: str,
