@@ -67,6 +67,91 @@ def test_export_writes_parquet_and_card(env: Path):
     assert stats["total_rows"] == 3
 
 
+def test_export_sidecar_split_separate_from_primary(env: Path):
+    """Sidecar (e.g. <poet>__commentary.jsonl) exports to its own parquet
+    and does not bleed into primary corpus stats or the subjects table."""
+    from packages.api import projects_store
+    from packages.export import run_export
+
+    projects_store.create_project("side", {"sources": []})
+    data_root = env / "data"
+    _write_clean(
+        "side",
+        "poet-a",
+        [
+            {"id": "h1", "poet": "poet-a", "text": "primary poem", "word_count": 2, "line_count": 1},
+        ],
+        data_root,
+    )
+    _write_clean(
+        "side",
+        "poet-a__commentary",
+        [
+            {"id": "c1", "poet": "poet-a", "text": "commentary about a poem", "word_count": 4, "line_count": 1},
+        ],
+        data_root,
+    )
+    result = run_export("side")
+    assert result["total_rows"] == 1, "sidecar must not count toward primary"
+    assert result["sidecar_rows"] == 1
+    assert "poet-a__commentary" in result["by_sidecar"]
+    export_dir = data_root / "side" / "export"
+    assert (export_dir / "poet-a.parquet").exists()
+    assert (export_dir / "poet-a__commentary.parquet").exists()
+    readme = (export_dir / "README.md").read_text(encoding="utf-8")
+    assert "Sidecar splits" in readme
+    assert "poet-a__commentary.parquet" in readme
+
+
+def test_export_extras_collects_topics_meters_provenance(env: Path):
+    """The dataset card extras pull topics/meters from meta and detect
+    multi-source records via the sources list."""
+    from packages.api import projects_store
+    from packages.export import run_export
+
+    projects_store.create_project("ex", {"sources": []})
+    _write_clean(
+        "ex",
+        "poet-a",
+        [
+            {
+                "id": "h1",
+                "poet": "poet-a",
+                "text": "x",
+                "word_count": 5,
+                "line_count": 1,
+                "source": "src-1",
+                "sources": ["src-1", "src-2"],
+                "meta": {"topics": "love|sadness", "meter": "بحر البسيط"},
+            },
+            {
+                "id": "h2",
+                "poet": "poet-a",
+                "text": "y",
+                "word_count": 10,
+                "line_count": 1,
+                "source": "src-1",
+                "sources": ["src-1"],
+                "meta": {"topics": "love"},
+            },
+        ],
+        env / "data",
+    )
+    result = run_export("ex")
+    extras = result["extras"]
+    topics = dict(extras["topics"])
+    assert topics["love"] == 2
+    assert topics["sadness"] == 1
+    assert dict(extras["meters"])["بحر البسيط"] == 1
+    assert extras["multi_source_records"] == 1
+    sources = dict(extras["sources"])
+    assert sources["src-1"] == 2
+    assert sources["src-2"] == 1
+    # Percentiles
+    assert extras["len_p50"] in (5, 10)  # tiny sample, just sanity
+    assert extras["total_words"] == 15
+
+
 def test_parquet_roundtrip(env: Path):
     import pyarrow.parquet as pq
 
