@@ -70,10 +70,19 @@ export const api = {
     req<void>(`/projects/${slug}`, { method: "DELETE" }),
   listJobs: (project?: string) =>
     req<Job[]>(`/jobs${project ? `?project=${encodeURIComponent(project)}` : ""}`),
-  enqueueJob: (project: string, kind: Job["kind"], duration_sec = 5) =>
+  enqueueJob: (
+    project: string,
+    kind: Job["kind"],
+    opts: { duration_sec?: number; force?: boolean } = {},
+  ) =>
     req<Job>("/jobs", {
       method: "POST",
-      body: JSON.stringify({ project, kind, duration_sec }),
+      body: JSON.stringify({
+        project,
+        kind,
+        duration_sec: opts.duration_sec ?? 5,
+        force: opts.force ?? false,
+      }),
     }),
   getJob: (id: number) => req<Job>(`/jobs/${id}`),
   listSources: (project: string, stage: "raw" | "clean" | "export") =>

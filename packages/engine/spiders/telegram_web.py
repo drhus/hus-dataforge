@@ -89,9 +89,11 @@ class TelegramWebSpider:
         progress: Progress,
         *,
         run_id: int | None = None,
+        force: bool = False,
     ) -> int:
+        from packages.engine.storage import load_source_checkpoint, save_source_checkpoint
+
         assert source.list_url, "telegram_web needs list_url set to https://t.me/s/<channel>"
-        # extract channel from /s/<channel>
         parts = source.list_url.rstrip("/").split("/")
         try:
             channel = parts[parts.index("s") + 1].split("?")[0]
@@ -102,10 +104,50 @@ class TelegramWebSpider:
         client = RateLimitedClient(rate_limit_sec=source.rate_limit_sec)
         seen_ids: set[int] = set()
 
+        # Incremental: stop pagination as soon as we hit any post_id we
+        # already have from a previous run. If no checkpoint exists but the
+        # JSONL file does (e.g. data scraped before incremental landed),
+        # seed the floor from the highest post_id in that file.
+        checkpoint = {} if force else load_source_checkpoint(slug, source.name)
+        last_max = int(checkpoint.get("max_post_id") or 0)
+        if not force and last_max == 0:
+            from packages.engine.storage import project_data_dir
+
+            jsonl = project_data_dir(slug) / "raw" / f"{source.name}.jsonl"
+            if jsonl.exists():
+                import json as _json
+
+                for line in jsonl.open("r", encoding="utf-8"):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        r = _json.loads(line)
+                    except _json.JSONDecodeError:
+                        continue
+                    pid = r.get("post_id")
+                    if isinstance(pid, int) and pid > last_max:
+                        last_max = pid
+                if last_max:
+                    log.info(
+                        "telegram_web: %s seeded floor from existing jsonl: %d",
+                        channel,
+                        last_max,
+                    )
+        log.info(
+            "telegram_web: %s incremental_floor=%d cap=%d%s",
+            channel,
+            last_max,
+            cap,
+            " (force)" if force else "",
+        )
+
+        new_max = last_max
         try:
             with RecordWriter(slug, source.name, run_id=run_id) as writer:
                 before: int | None = None
-                while writer.count < cap:
+                stop = False
+                while writer.count < cap and not stop:
                     url = _page_url(channel, before)
                     html = client.get(url)
                     write_raw(slug, html, url)
@@ -115,20 +157,41 @@ class TelegramWebSpider:
                         break
                     written_this_page = 0
                     for m in new_msgs:
+                        if m["post_id"] <= last_max:
+                            stop = True
+                            break  # caught up to previous max — done
                         seen_ids.add(m["post_id"])
                         m["_source_url"] = m["permalink"]
                         m["_channel"] = channel
                         m["_scraped_at"] = datetime.utcnow().isoformat() + "Z"
                         writer.write(m)
                         written_this_page += 1
+                        if m["post_id"] > new_max:
+                            new_max = m["post_id"]
                         if writer.count >= cap:
+                            stop = True
                             break
                     progress.page(url, written_this_page)
+                    if stop:
+                        break
                     next_before = min(m["post_id"] for m in new_msgs)
                     if before is not None and next_before >= before:
-                        # not making progress (older-page returned same or newer ids)
-                        break
+                        break  # not making progress
                     before = next_before
+
+                save_source_checkpoint(
+                    slug,
+                    source.name,
+                    {
+                        "channel": channel,
+                        "last_run_at": datetime.utcnow().isoformat() + "Z",
+                        "mode": "incremental" if last_max else "backfill",
+                        "max_post_id": new_max,
+                        "previous_max_post_id": last_max,
+                        "count_this_run": writer.count,
+                        "count_total": (checkpoint.get("count_total") or 0) + writer.count,
+                    },
+                )
                 return writer.count
         finally:
             client.close()

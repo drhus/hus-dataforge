@@ -120,8 +120,11 @@ class TelegramMTProtoSpider:
         progress: Progress,
         *,
         run_id: int | None = None,
+        force: bool = False,
     ) -> int:
-        from telethon import TelegramClient
+        # telethon.sync auto-manages the event loop so all client methods
+        # behave synchronously from this code's perspective
+        from telethon.sync import TelegramClient
         from telethon.tl.types import Message
 
         channel = source.fixture_path
@@ -139,7 +142,7 @@ class TelegramMTProtoSpider:
         session_arg = session[:-8] if session.endswith(".session") else session
 
         # Forward-incremental: only fetch messages newer than our last max
-        prev = _read_manifest(slug, source.name)
+        prev = {} if force else _read_manifest(slug, source.name)
         min_id = int(prev.get("max_post_id") or 0)
 
         # Tail-extension: if configured, cap upper bound at the other source's

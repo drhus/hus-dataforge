@@ -74,3 +74,47 @@ def count_jsonl(slug: str, source_name: str) -> int:
         return 0
     with p.open("rb") as fh:
         return sum(1 for _ in fh)
+
+
+def load_seen_urls(slug: str) -> set[str]:
+    """Return the set of all URLs we've ever fetched in this project.
+
+    Used by incremental scraping — list_detail spiders skip URLs already in
+    this set unless force=True. Reads `raw/_index.jsonl` which write_raw()
+    appends to on every fetch."""
+    p = project_data_dir(slug) / "raw" / "_index.jsonl"
+    if not p.exists():
+        return set()
+    seen: set[str] = set()
+    with p.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            u = r.get("url")
+            if u:
+                seen.add(u)
+    return seen
+
+
+def load_source_checkpoint(slug: str, source_name: str) -> dict:
+    """Read this source's checkpoint manifest (max_post_id, last_run_at, etc.).
+
+    Used by telegram_web and telegram_mtproto for forward-incremental pulls."""
+    p = project_data_dir(slug) / "raw" / f"{source_name}.manifest.json"
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def save_source_checkpoint(slug: str, source_name: str, data: dict) -> None:
+    p = project_data_dir(slug) / "raw" / f"{source_name}.manifest.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

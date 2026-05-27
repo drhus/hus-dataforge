@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 log = logging.getLogger(__name__)
 
 
-def run_scrape(project: str, job_id: int) -> dict:
+def run_scrape(project: str, job_id: int, force: bool = False) -> dict:
     eng = engine()
     with Session(eng) as session:
         job = session.get(Job, job_id)
@@ -23,7 +23,9 @@ def run_scrape(project: str, job_id: int) -> dict:
         session.commit()
         progress = DBProgress(session, job_id)
         try:
-            result = engine_run_scrape(project, progress=progress, run_id=job_id)
+            result = engine_run_scrape(
+                project, progress=progress, run_id=job_id, force=force
+            )
             return result
         finally:
             progress.finish()

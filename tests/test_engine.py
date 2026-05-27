@@ -142,6 +142,56 @@ def test_telegram_mtproto_manifest_roundtrip(fresh_env: Path, monkeypatch):
     assert tmt._read_manifest("test-slug", "no-such-source") == {}
 
 
+def test_storage_load_seen_urls(fresh_env: Path, monkeypatch):
+    """The seen-URLs index drives list_detail incremental scraping."""
+    monkeypatch.setenv("DATAFORGE_DATA_DIR", str(fresh_env / "data"))
+    import sys
+
+    for mod in list(sys.modules):
+        if mod.startswith("packages."):
+            del sys.modules[mod]
+    from packages.engine.storage import load_seen_urls, project_data_dir
+
+    raw = project_data_dir("p") / "raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / "_index.jsonl").write_text(
+        "\n".join(
+            [
+                '{"url": "https://a.example/1", "hash": "h1"}',
+                '{"url": "https://a.example/2", "hash": "h2"}',
+                "",
+                "not-json",
+                '{"url": "https://a.example/3", "hash": "h3"}',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    seen = load_seen_urls("p")
+    assert seen == {
+        "https://a.example/1",
+        "https://a.example/2",
+        "https://a.example/3",
+    }
+    # missing project → empty set
+    assert load_seen_urls("nope") == set()
+
+
+def test_storage_source_checkpoint_roundtrip(fresh_env: Path, monkeypatch):
+    monkeypatch.setenv("DATAFORGE_DATA_DIR", str(fresh_env / "data"))
+    import sys
+
+    for mod in list(sys.modules):
+        if mod.startswith("packages."):
+            del sys.modules[mod]
+    from packages.engine.storage import load_source_checkpoint, save_source_checkpoint
+
+    assert load_source_checkpoint("p", "s") == {}
+    save_source_checkpoint("p", "s", {"max_post_id": 4729, "mode": "incremental"})
+    cp = load_source_checkpoint("p", "s")
+    assert cp["max_post_id"] == 4729
+    assert cp["mode"] == "incremental"
+
+
 def test_progress_is_called(fresh_env):
     _write_fixture_project(fresh_env, SAMPLE_HTML)
 

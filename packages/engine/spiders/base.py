@@ -14,9 +14,11 @@ class Spider(Protocol):
         progress: Progress,
         *,
         run_id: int | None = None,
+        force: bool = False,
     ) -> int:
         """Run the spider end-to-end. Returns number of records written.
 
-        `run_id` is the API Job.id; spiders that pass it to RecordWriter
-        will stamp each written record for lineage."""
+        `run_id` — API Job.id; spiders pass it to RecordWriter for lineage.
+        `force` — if True, scrape from scratch (ignore incremental
+                  checkpoints / seen-URL set). Default False = resume."""
         ...

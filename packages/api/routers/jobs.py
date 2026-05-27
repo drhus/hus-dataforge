@@ -34,6 +34,9 @@ class JobIn(BaseModel):
     project: str
     kind: str = Field(..., description="scrape | clean | export")
     duration_sec: int = Field(5, ge=1, le=300, description="for the stub runner")
+    force: bool = Field(
+        False, description="scrape: re-fetch all sources from scratch (ignore incremental checkpoints)"
+    )
 
 
 def _serialize(job: Job) -> dict:
@@ -93,7 +96,11 @@ def enqueue_job(body: JobIn, session: Session = Depends(get_session)):
 
     try:
         if body.kind == "scrape":
-            rq_job = get_queue().enqueue(run_scrape, body.project, job.id, job_timeout=7200)
+            rq_job = get_queue().enqueue(
+                run_scrape, body.project, job.id, body.force, job_timeout=7200
+            )
+            if body.force:
+                job.message = '{"mode": "force_full"}'
         elif body.kind == "clean":
             rq_job = get_queue().enqueue(run_clean, body.project, job.id, job_timeout=3600)
         elif body.kind == "export":

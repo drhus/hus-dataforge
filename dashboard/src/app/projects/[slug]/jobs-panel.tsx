@@ -30,10 +30,12 @@ export function JobsPanel({ slug }: { slug: string }) {
     return () => clearInterval(id);
   }, [refresh]);
 
+  const [force, setForce] = useState(false);
+
   async function enqueue(kind: Job["kind"]) {
     setBusy(true);
     try {
-      await api.enqueueJob(slug, kind, 5);
+      await api.enqueueJob(slug, kind, { force: kind === "scrape" ? force : false });
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -45,7 +47,7 @@ export function JobsPanel({ slug }: { slug: string }) {
   async function runPipeline() {
     setBusy(true);
     try {
-      await api.enqueueJob(slug, "scrape");
+      await api.enqueueJob(slug, "scrape", { force });
       await api.enqueueJob(slug, "clean");
       await api.enqueueJob(slug, "export");
       await refresh();
@@ -86,6 +88,18 @@ export function JobsPanel({ slug }: { slug: string }) {
           </button>
         </div>
       </div>
+
+      <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+        <input
+          type="checkbox"
+          checked={force}
+          onChange={(e) => setForce(e.target.checked)}
+        />
+        <span>
+          <strong>Force full re-scan</strong> for scrape (default is incremental —
+          resume from last checkpoint, only fetch new content)
+        </span>
+      </label>
 
       {error && (
         <div className="rounded-md border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/50 p-3 text-xs text-red-700 dark:text-red-300">

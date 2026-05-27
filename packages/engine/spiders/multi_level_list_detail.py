@@ -25,8 +25,19 @@ log = logging.getLogger(__name__)
 
 
 class MultiLevelListDetailSpider:
-    def run(self, slug: str, source: SourceSpec, progress: Progress, *, run_id: int | None = None) -> int:
+    def run(
+        self,
+        slug: str,
+        source: SourceSpec,
+        progress: Progress,
+        *,
+        run_id: int | None = None,
+        force: bool = False,
+    ) -> int:
+        from packages.engine.storage import load_seen_urls
+
         assert source.list_url and source.list_link_selector and source.sub_link_selector
+        seen_urls = set() if force else load_seen_urls(slug)
 
         client = RateLimitedClient(rate_limit_sec=source.rate_limit_sec)
         base = source.base_url or source.list_url
@@ -53,16 +64,22 @@ class MultiLevelListDetailSpider:
                     for h in extract_links(l1_html, source.sub_link_selector, source.link_attr)
                 )
 
-            # dedup while preserving order
+            # dedup while preserving order; also skip URLs already fetched in
+            # any previous run (project-wide _index.jsonl) unless force=True.
             seen: set[str] = set()
             ordered_details: list[str] = []
             for u in detail_urls:
-                if u not in seen:
-                    seen.add(u)
-                    ordered_details.append(u)
+                if u in seen or u in seen_urls:
+                    continue
+                seen.add(u)
+                ordered_details.append(u)
             if source.max_records is not None:
                 ordered_details = ordered_details[: source.max_records]
-            log.info("multi_level: %d unique detail URLs to scrape", len(ordered_details))
+            log.info(
+                "multi_level: %d new detail URLs to scrape%s",
+                len(ordered_details),
+                " (force)" if force else "",
+            )
 
             with RecordWriter(slug, source.name, run_id=run_id) as writer:
                 for url in ordered_details:

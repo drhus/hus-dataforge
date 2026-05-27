@@ -8,6 +8,7 @@ source to a Spider in the REGISTRY, runs it, and stores raw HTML + JSONL
 records under data/<slug>/raw/."""
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 import time
@@ -26,7 +27,20 @@ TELEGRAM_INTER_CHANNEL_COOLDOWN_SEC = int(
 )
 
 
-def run_scrape(slug: str, *, progress: Progress | None = None, run_id: int | None = None) -> dict:
+def run_scrape(
+    slug: str,
+    *,
+    progress: Progress | None = None,
+    run_id: int | None = None,
+    force: bool = False,
+) -> dict:
+    """Scrape all sources in the project.
+
+    Default (force=False): incremental — list_detail skips URLs already
+    in `_index.jsonl`, telegram_web stops at the prior max_post_id,
+    telegram_mtproto uses min_id from its manifest.
+
+    force=True: full re-fetch from scratch for every source."""
     progress = progress or NullProgress()
     raw_cfg = projects_store.get_project(slug).config
     if "_yaml" in raw_cfg and isinstance(raw_cfg["_yaml"], str):
@@ -56,14 +70,24 @@ def run_scrape(slug: str, *, progress: Progress | None = None, run_id: int | Non
             time.sleep(TELEGRAM_INTER_CHANNEL_COOLDOWN_SEC)
 
         progress.start(source.name)
-        log.info("scrape: %s/%s (%s, run_id=%s)", slug, source.name, source.type, run_id)
+        log.info(
+            "scrape: %s/%s (%s, run_id=%s, force=%s)",
+            slug,
+            source.name,
+            source.type,
+            run_id,
+            force,
+        )
         spider = SpiderCls()
-        # Spiders that opt-in to run_id stamping (newer spider-base contract).
-        # Older spiders ignore the kwarg via the call check.
-        try:
-            totals_by_source[source.name] = spider.run(slug, source, progress, run_id=run_id)
-        except TypeError:
-            totals_by_source[source.name] = spider.run(slug, source, progress)
+        # Inspect the spider's actual signature so we only pass kwargs it
+        # accepts — avoids try/except TypeError swallowing real spider errors.
+        sig = inspect.signature(spider.run)
+        kwargs: dict = {}
+        if "run_id" in sig.parameters:
+            kwargs["run_id"] = run_id
+        if "force" in sig.parameters:
+            kwargs["force"] = force
+        totals_by_source[source.name] = spider.run(slug, source, progress, **kwargs)
         last_was_mtproto = source.type == "telegram_mtproto"
 
     progress.finish()

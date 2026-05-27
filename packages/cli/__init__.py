@@ -44,11 +44,19 @@ def init(
 @app.command(name="scrape")
 def scrape(
     slug: str = typer.Argument(..., help="Project slug to scrape"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Full re-scan from scratch (skip incremental checkpoints).",
+    ),
 ) -> None:
-    """Run all configured sources for a project synchronously (no queue)."""
+    """Run all configured sources for a project synchronously (no queue).
+
+    Default is incremental: list_detail skips URLs already in _index.jsonl,
+    telegram_web stops at the prior max_post_id, telegram_mtproto uses min_id."""
     from packages.engine import run_scrape
 
-    result = run_scrape(slug)
+    result = run_scrape(slug, force=force)
     import json
 
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))

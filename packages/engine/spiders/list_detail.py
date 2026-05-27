@@ -1,4 +1,9 @@
-"""list_detail: fetch a listing page, follow N links, extract one record per detail page."""
+"""list_detail: fetch a listing page, follow N links, extract one record per detail page.
+
+Incremental by default: detail URLs already fetched in any previous run
+(tracked via `raw/_index.jsonl`) are skipped. The listing page itself is
+always re-fetched so new URLs are discovered. Pass `force=True` to fetch
+everything from scratch."""
 from __future__ import annotations
 
 import logging
@@ -8,7 +13,7 @@ from packages.engine.extract import extract_links, extract_records
 from packages.engine.http_client import RateLimitedClient
 from packages.engine.progress import Progress
 from packages.engine.spec import SourceSpec
-from packages.engine.storage import RecordWriter, write_raw
+from packages.engine.storage import RecordWriter, load_seen_urls, write_raw
 
 log = logging.getLogger(__name__)
 
@@ -21,6 +26,7 @@ class ListDetailSpider:
         progress: Progress,
         *,
         run_id: int | None = None,
+        force: bool = False,
     ) -> int:
         assert source.list_url and source.list_link_selector
 
@@ -35,11 +41,24 @@ class ListDetailSpider:
             )
             base = source.base_url or source.list_url
             urls = [urljoin(base, href) for href in raw_links]
+
+            seen_urls: set[str] = set() if force else load_seen_urls(slug)
+            new_urls = [u for u in urls if u not in seen_urls]
+            log.info(
+                "list_detail: %d total / %d already seen / %d new%s",
+                len(urls),
+                len(urls) - len(new_urls),
+                len(new_urls),
+                " (force)" if force else "",
+            )
+            urls = new_urls
             if source.max_records is not None:
                 urls = urls[: source.max_records]
-            log.info("list_detail: %d detail URLs to fetch", len(urls))
 
             with RecordWriter(slug, source.name, run_id=run_id) as writer:
+                if not urls:
+                    progress.page(source.list_url, 0)
+                    return 0
                 for url in urls:
                     try:
                         html = client.get(url)
