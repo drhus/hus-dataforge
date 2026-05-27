@@ -82,11 +82,14 @@ class MultiLevelListDetailSpider:
             )
 
             with RecordWriter(slug, source.name, run_id=run_id) as writer:
+                from packages.engine.storage import record_failed_url
+
                 for url in ordered_details:
                     try:
                         html = client.get(url)
                     except Exception as e:
                         log.warning("detail fetch failed %s: %s", url, e)
+                        record_failed_url(slug, url, str(e))
                         progress.page(url, 0)
                         continue
                     write_raw(slug, html, url)

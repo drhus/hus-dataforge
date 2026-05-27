@@ -77,28 +77,51 @@ def count_jsonl(slug: str, source_name: str) -> int:
 
 
 def load_seen_urls(slug: str) -> set[str]:
-    """Return the set of all URLs we've ever fetched in this project.
+    """Return the set of all URLs we've ever ATTEMPTED in this project.
 
     Used by incremental scraping — list_detail spiders skip URLs already in
-    this set unless force=True. Reads `raw/_index.jsonl` which write_raw()
-    appends to on every fetch."""
-    p = project_data_dir(slug) / "raw" / "_index.jsonl"
-    if not p.exists():
-        return set()
+    this set unless force=True. Includes both successful fetches (from
+    _index.jsonl) AND failed ones (404s, network errors, from _failed.jsonl)
+    so we don't endlessly retry pages that don't exist."""
+    p = project_data_dir(slug) / "raw"
     seen: set[str] = set()
-    with p.open("r", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                r = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            u = r.get("url")
-            if u:
-                seen.add(u)
+    for fname in ("_index.jsonl", "_failed.jsonl"):
+        f = p / fname
+        if not f.exists():
+            continue
+        with f.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                u = r.get("url")
+                if u:
+                    seen.add(u)
     return seen
+
+
+def record_failed_url(slug: str, url: str, reason: str) -> None:
+    """Append to _failed.jsonl so we don't retry URLs that 404 / error every run."""
+    from datetime import datetime, timezone
+
+    p = project_data_dir(slug) / "raw" / "_failed.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as fh:
+        fh.write(
+            json.dumps(
+                {
+                    "url": url,
+                    "reason": reason[:200],
+                    "at": datetime.now(tz=timezone.utc).isoformat(),
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
 
 
 def load_source_checkpoint(slug: str, source_name: str) -> dict:

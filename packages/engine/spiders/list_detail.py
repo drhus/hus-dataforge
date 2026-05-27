@@ -13,7 +13,7 @@ from packages.engine.extract import extract_links, extract_records
 from packages.engine.http_client import RateLimitedClient
 from packages.engine.progress import Progress
 from packages.engine.spec import SourceSpec
-from packages.engine.storage import RecordWriter, load_seen_urls, write_raw
+from packages.engine.storage import RecordWriter, load_seen_urls, record_failed_url, write_raw
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +64,8 @@ class ListDetailSpider:
                         html = client.get(url)
                     except Exception as e:
                         log.warning("detail fetch failed %s: %s", url, e)
+                        # Record so we don't endlessly retry dead URLs
+                        record_failed_url(slug, url, str(e))
                         progress.page(url, 0)
                         continue
                     write_raw(slug, html, url)
