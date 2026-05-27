@@ -39,12 +39,24 @@ export default async function ProjectDetail({
             updated {new Date(project.updated_at).toLocaleString()}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Link
+            href={`/projects/${project.slug}/add-source`}
+            className="rounded-md bg-emerald-600 text-white px-3 py-2 text-sm font-medium hover:opacity-90"
+          >
+            + Add source
+          </Link>
           <Link
             href={`/projects/${project.slug}/rules`}
             className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
-            Cleaning rules
+            Rules
+          </Link>
+          <Link
+            href={`/projects/${project.slug}/schedules`}
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            Schedules
           </Link>
           <Link
             href={`/projects/${project.slug}/data`}

@@ -82,12 +82,13 @@ export const api = {
     project: string,
     stage: string,
     source: string,
-    opts: { offset?: number; limit?: number; q?: string } = {},
+    opts: { offset?: number; limit?: number; q?: string; run_id?: number } = {},
   ) => {
     const qs = new URLSearchParams();
     if (opts.offset) qs.set("offset", String(opts.offset));
     if (opts.limit) qs.set("limit", String(opts.limit));
     if (opts.q) qs.set("q", opts.q);
+    if (opts.run_id != null) qs.set("run_id", String(opts.run_id));
     const tail = qs.toString() ? `?${qs.toString()}` : "";
     return req<DataPage>(`/data/${project}/${stage}/${source}${tail}`);
   },
@@ -145,4 +146,82 @@ export const api = {
     }),
   resetCleanupRules: (project: string, source: string) =>
     req<void>(`/projects/${project}/sources/${source}/cleanup`, { method: "DELETE" }),
+  listSubjects: (project: string) =>
+    req<{ subjects: (PoetManifest & { type: string })[] }>(`/data/${project}/subjects`),
+  detectSourceType: (url: string) =>
+    req<{ type: string; confidence: string; hint: string; [k: string]: unknown }>(
+      "/preview/detect",
+      { method: "POST", body: JSON.stringify({ url }) },
+    ),
+  previewSource: (project: string, source: Record<string, unknown>, sample_size = 5) =>
+    req<{
+      source: string;
+      type: string;
+      samples: Record<string, unknown>[];
+      sample_count: number;
+      errors: string[];
+    }>("/preview/source", {
+      method: "POST",
+      body: JSON.stringify({ project, source, sample_size }),
+    }),
+  suggestCleanup: (samples: Record<string, unknown>[]) =>
+    req<{
+      title_ops: { op: string; [k: string]: unknown }[];
+      text_ops: { op: string; [k: string]: unknown }[];
+      filter_min_chars: number;
+      filter_min_arabic_ratio: number;
+      _stats: Record<string, unknown>;
+    }>("/preview/suggest-cleanup", { method: "POST", body: JSON.stringify({ samples }) }),
+  discoverSources: (name: string, aliases: string[] = [], subject_type = "poet") =>
+    req<{
+      candidates: {
+        site: string;
+        confidence: string;
+        url: string;
+        source_template: Record<string, unknown>;
+        notes: string;
+      }[];
+    }>("/preview/discover", {
+      method: "POST",
+      body: JSON.stringify({ name, aliases, subject_type }),
+    }),
+  addSource: (
+    project: string,
+    source: Record<string, unknown>,
+    subject: Record<string, unknown> | null = null,
+  ) =>
+    req<{ ok: boolean; source: Record<string, unknown>; subject: string | null }>(
+      `/projects/${project}/sources`,
+      { method: "POST", body: JSON.stringify({ source, subject }) },
+    ),
+  listSchedules: (project: string) =>
+    req<{
+      schedules: {
+        id: string;
+        kind: string;
+        cron: string;
+        enabled: boolean;
+        last_run_at?: string;
+        next_run_at?: string;
+        last_status?: string;
+      }[];
+    }>(`/projects/${project}/schedules`),
+  upsertSchedule: (
+    project: string,
+    body: { id: string; kind: string; cron: string; enabled: boolean },
+  ) =>
+    req<{ ok: boolean }>(`/projects/${project}/schedules`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteSchedule: (project: string, schedule_id: string) =>
+    req<void>(`/projects/${project}/schedules/${schedule_id}`, { method: "DELETE" }),
+  postCuration: (
+    project: string,
+    actions: { id: string; action: string; category?: string; subject?: string }[],
+  ) =>
+    req<{ ok: boolean; written: number }>(`/projects/${project}/curation`, {
+      method: "POST",
+      body: JSON.stringify({ actions }),
+    }),
 };
