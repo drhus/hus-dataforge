@@ -329,6 +329,42 @@ function RecordCard({ r }: { r: Record<string, unknown> }) {
         ) : null}
         {meta?.views ? <span>{String(meta.views)} views</span> : null}
       </footer>
+      <Provenance r={r} />
     </article>
+  );
+}
+
+function Provenance({ r }: { r: Record<string, unknown> }) {
+  const sources = (r.sources as string[] | undefined) || [];
+  const urls = (r.source_urls as string[] | undefined) || [];
+  if (sources.length <= 1) return null;
+  return (
+    <div className="pt-1 border-t border-zinc-100 dark:border-zinc-800 text-xs space-y-1">
+      <div className="text-zinc-500">
+        Also appears in {sources.length - 1} other source
+        {sources.length - 1 === 1 ? "" : "s"}:
+      </div>
+      <ul className="flex flex-wrap gap-x-3 gap-y-1">
+        {sources.map((s, i) => {
+          const u = urls[i];
+          return (
+            <li key={`${s}-${i}`} className="font-mono text-[11px]">
+              {u ? (
+                <a
+                  href={u}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 underline decoration-dotted"
+                >
+                  {s}
+                </a>
+              ) : (
+                <span className="text-zinc-500">{s}</span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

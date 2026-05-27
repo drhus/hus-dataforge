@@ -97,6 +97,79 @@ def test_dedup_exact_and_near(env: Path):
     assert d.is_dup(diff) is False
 
 
+def test_dedup_check_returns_survivor_id(env: Path):
+    """check() returns the survivor's id when a dup arrives."""
+    from packages.pipeline.dedup import Deduper
+
+    d = Deduper(threshold=0.85)
+    base = {"id": "aldiwan-1", "text": "بيت أول مفصّل\nبيت ثاني للقصيدة"}
+    near = {"id": "telegram-1", "text": "بيت أول مفصّل\nبيت ثاني للقصيدةِ"}  # near-dup
+    assert d.check(base) is None  # first occurrence registered
+    survivor = d.check(near)
+    assert survivor == "aldiwan-1"  # near-dup points back to base
+
+
+def test_clean_merges_provenance_across_sources(env: Path):
+    """When the same poem is in aldiwan and a telegram source, the surviving
+    clean record should list both in `sources`."""
+    from packages.api import projects_store
+    from packages.pipeline import run_clean
+
+    projects_store.create_project(
+        "prov",
+        {
+            "sources": [
+                {
+                    "name": "aldiwan-p",
+                    "type": "list_detail",
+                    "list_url": "https://x/cat-poet-p",
+                    "list_link_selector": "a",
+                    "record_selector": "body",
+                    "fields": {"title": "h1"},
+                    "poet": "p",
+                },
+                {
+                    "name": "telegram-p",
+                    "type": "telegram_web",
+                    "channel": "p",
+                    "poet": "p",
+                },
+            ]
+        },
+    )
+    text = "بيت أول مفصّل بالعربية\nبيت ثاني للقصيدة"
+    _write_raw(
+        "prov",
+        "aldiwan-p",
+        [{"title": "T", "verses": text, "_source_url": "https://aldiwan/poem/1"}],
+        env / "data",
+    )
+    _write_raw(
+        "prov",
+        "telegram-p",
+        [
+            {
+                "text": text,
+                "_channel": "p",
+                "permalink": "https://t.me/p/100",
+                "_source_url": "https://t.me/p/100",
+            }
+        ],
+        env / "data",
+    )
+    result = run_clean("prov")
+    assert result["dedup_dropped"] == 1
+
+    out = env / "data" / "prov" / "clean" / "p.jsonl"
+    lines = [json.loads(l) for l in out.read_text().splitlines() if l.strip()]
+    assert len(lines) == 1
+    survivor = lines[0]
+    # both sources should appear in the survivor's provenance list
+    assert set(survivor["sources"]) == {"aldiwan-p", "telegram-p"}
+    assert any("aldiwan" in u for u in survivor["source_urls"])
+    assert any("t.me/p/100" in u for u in survivor["source_urls"])
+
+
 def test_source_priority_mtproto_wins_dedup(env: Path):
     """When a poem appears in both telegram_mtproto and telegram_web for the
     same channel, the MTProto record (richer metadata) should be kept and the

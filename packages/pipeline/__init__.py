@@ -196,15 +196,28 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
 
     # dedup per bucket (a poem and the same poem reposted as commentary should NOT dedup
     # against each other — they have different intent in the corpus)
+    # When a dup is folded, accumulate sources + source_urls on the survivor so
+    # downstream consumers see all variants ("this poem appears in: X, Y, Z").
     for (poet_slug, category), records in per_bucket.items():
         deduper = Deduper()
         kept: list[dict] = []
+        by_id: dict[str, dict] = {}
         for r in records:
-            if deduper.is_dup(r):
+            survivor_id = deduper.check(r)
+            if survivor_id is not None:
+                # Fold provenance into the survivor
+                survivor = by_id.get(survivor_id)
+                if survivor is not None:
+                    _merge_provenance(survivor, r)
                 stats["dedup_dropped"] += 1
                 stats["by_poet"][poet_slug]["dropped_dedup"] += 1
                 continue
+            # New survivor — initialize provenance lists
+            r.setdefault("sources", [r.get("source")])
+            r.setdefault("source_urls", [r.get("source_url")] if r.get("source_url") else [])
             kept.append(r)
+            if r.get("id"):
+                by_id[r["id"]] = r
             stats["by_poet"][poet_slug]["kept"] += 1
             stats["by_source"][r["source"]]["kept"] += 1
             stats["by_category"][category] += 1
@@ -274,6 +287,21 @@ def _guess_kind_from_source_name(source_name: str) -> str:
     if "fixture" in low:
         return "fixture"
     return "unknown"
+
+
+def _merge_provenance(survivor: dict, duplicate: dict) -> None:
+    """When a duplicate folds into a survivor, accumulate sources + URLs."""
+    src = duplicate.get("source")
+    url = duplicate.get("source_url")
+    sources = survivor.setdefault("sources", [survivor.get("source")])
+    if src and src not in sources:
+        sources.append(src)
+    urls = survivor.setdefault(
+        "source_urls",
+        [survivor.get("source_url")] if survivor.get("source_url") else [],
+    )
+    if url and url not in urls:
+        urls.append(url)
 
 
 __all__ = ["run_clean"]
