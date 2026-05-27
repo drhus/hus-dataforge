@@ -83,6 +83,35 @@ def test_spec_rejects_invalid_source(fresh_env):
         run_scrape("broken")
 
 
+def test_telegram_mtproto_manifest_roundtrip(fresh_env: Path, monkeypatch):
+    """Manifest written by mtproto spider can be read back for incremental resume."""
+    monkeypatch.setenv("DATAFORGE_DATA_DIR", str(fresh_env / "data"))
+    import importlib
+    import sys
+
+    for mod in list(sys.modules):
+        if mod.startswith("packages."):
+            del sys.modules[mod]
+    from packages.engine.spiders import telegram_mtproto as tmt
+
+    importlib.reload(tmt)
+    tmt._write_manifest(
+        "test-slug",
+        "telegram-x",
+        {
+            "channel": "x",
+            "max_post_id": 4729,
+            "count_total": 4729,
+            "mode": "backfill",
+        },
+    )
+    m = tmt._read_manifest("test-slug", "telegram-x")
+    assert m["max_post_id"] == 4729
+    assert m["channel"] == "x"
+    # missing manifest returns {}
+    assert tmt._read_manifest("test-slug", "no-such-source") == {}
+
+
 def test_progress_is_called(fresh_env):
     _write_fixture_project(fresh_env, SAMPLE_HTML)
 

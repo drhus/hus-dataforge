@@ -97,6 +97,77 @@ def test_dedup_exact_and_near(env: Path):
     assert d.is_dup(diff) is False
 
 
+def test_source_priority_mtproto_wins_dedup(env: Path):
+    """When a poem appears in both telegram_mtproto and telegram_web for the
+    same channel, the MTProto record (richer metadata) should be kept and the
+    web-mirror one dropped as a duplicate."""
+    from packages.api import projects_store
+    from packages.pipeline import run_clean
+
+    projects_store.create_project(
+        "prio",
+        {
+            "sources": [
+                {
+                    "name": "telegram-x-mtproto",
+                    "type": "telegram_mtproto",
+                    "channel": "x",
+                    "poet": "p",
+                },
+                {
+                    "name": "telegram-x-web",
+                    "type": "telegram_web",
+                    "channel": "x",
+                    "poet": "p",
+                },
+            ]
+        },
+    )
+    data_root = env / "data"
+    # Same poem in both sources; mtproto has extra metadata
+    poem = "بيت من شعرٍ جميلٍ هنا\nوبيت آخر من نفس القصيدةِ"
+    _write_raw(
+        "prio",
+        "telegram-x-mtproto",
+        [
+            {
+                "post_id": 100,
+                "text": poem,
+                "edited_at": "2026-04-01T00:00:00Z",
+                "views": 5000,
+                "_channel": "x",
+                "permalink": "https://t.me/x/100",
+                "_source_url": "https://t.me/x/100",
+            }
+        ],
+        data_root,
+    )
+    _write_raw(
+        "prio",
+        "telegram-x-web",
+        [
+            {
+                "text": poem,
+                "_channel": "x",
+                "permalink": "https://t.me/x/100",
+                "_source_url": "https://t.me/x/100",
+            }
+        ],
+        data_root,
+    )
+
+    result = run_clean("prio")
+    assert result["input_total"] == 2
+    assert result["dedup_dropped"] == 1
+
+    out = data_root / "prio" / "clean" / "p.jsonl"
+    lines = [json.loads(l) for l in out.read_text().splitlines() if l.strip()]
+    assert len(lines) == 1
+    # the surviving record came from MTProto (it has views in meta)
+    assert lines[0]["source"] == "telegram-x-mtproto"
+    assert lines[0]["meta"]["views"] == 5000
+
+
 def test_categorize_splits_into_primary_and_sidecar(env: Path):
     """Records matching the categorize rule go to the primary file;
     everything else falls back to a sidecar JSONL."""

@@ -91,6 +91,25 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
     clean_dir = DATA_DIR / slug / "clean"
     clean_dir.mkdir(parents=True, exist_ok=True)
 
+    # Process sources in priority order — when the same poem appears in
+    # multiple sources, dedup's first-occurrence wins, so the richer source
+    # should run first. Lower number = higher priority.
+    type_priority = {
+        "telegram_mtproto": 10,  # richest: edits, forwards, media, views
+        "list_detail": 20,
+        "multi_level_list_detail": 20,
+        "paginated": 20,
+        "telegram_web": 50,  # poorer than mtproto for same channel
+        "x_syndication": 60,
+        "fixture": 100,
+    }
+
+    def _source_priority(jsonl_path: Path) -> tuple[int, str]:
+        name = jsonl_path.stem
+        s = source_by_name.get(name)
+        kind = (s.type if s else None) or _guess_kind_from_source_name(name)
+        return (type_priority.get(kind, 90), name)
+
     # group by (poet, category) so dedup happens at that scope
     per_bucket: dict[tuple[str, str], list[dict]] = defaultdict(list)
     stats = {
@@ -105,7 +124,7 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
         "by_category": defaultdict(int),
     }
 
-    for source_jsonl in sorted(raw_dir.glob("*.jsonl")):
+    for source_jsonl in sorted(raw_dir.glob("*.jsonl"), key=_source_priority):
         if source_jsonl.name == "_index.jsonl":
             continue
         source_name = source_jsonl.stem

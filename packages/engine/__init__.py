@@ -9,6 +9,8 @@ records under data/<slug>/raw/."""
 from __future__ import annotations
 
 import logging
+import os
+import time
 
 from packages.api import projects_store
 from packages.engine.progress import NullProgress, Progress
@@ -16,6 +18,12 @@ from packages.engine.spec import project_spec_from_dict
 from packages.engine.spiders import REGISTRY
 
 log = logging.getLogger(__name__)
+
+# Inter-channel cooldown for Telegram MTProto: avoids back-to-back full-history
+# pulls on the same account triggering session-level flood-waits.
+TELEGRAM_INTER_CHANNEL_COOLDOWN_SEC = int(
+    os.environ.get("DATAFORGE_TELEGRAM_COOLDOWN_SEC", "30")
+)
 
 
 def run_scrape(slug: str, *, progress: Progress | None = None) -> dict:
@@ -33,13 +41,24 @@ def run_scrape(slug: str, *, progress: Progress | None = None) -> dict:
         )
 
     totals_by_source: dict[str, int] = {}
+    last_was_mtproto = False
     for source in spec.sources:
         SpiderCls = REGISTRY.get(source.type)
         if SpiderCls is None:
             raise ValueError(f"unknown spider type: {source.type}")
+
+        # cooldown between MTProto channels — protects the session from flood-wait
+        if source.type == "telegram_mtproto" and last_was_mtproto:
+            log.info(
+                "telegram_mtproto inter-channel cooldown: sleeping %ds",
+                TELEGRAM_INTER_CHANNEL_COOLDOWN_SEC,
+            )
+            time.sleep(TELEGRAM_INTER_CHANNEL_COOLDOWN_SEC)
+
         progress.start(source.name)
         log.info("scrape: %s/%s (%s)", slug, source.name, source.type)
         totals_by_source[source.name] = SpiderCls().run(slug, source, progress)
+        last_was_mtproto = source.type == "telegram_mtproto"
 
     progress.finish()
     return {
