@@ -26,20 +26,50 @@ def _stage_dir(project: str, stage: str) -> Path:
     return DATA_DIR / project / stage
 
 
+def _source_files(d: Path) -> list[Path]:
+    """List source files in a stage dir: .jsonl (raw/clean) + .parquet (export).
+    Sidecar/manifest files (starting with `_`) are excluded."""
+    files: dict[str, Path] = {}
+    for ext in ("*.jsonl", "*.parquet"):
+        for p in d.glob(ext):
+            if p.name.startswith("_"):
+                continue
+            # If both jsonl + parquet exist for same stem, prefer jsonl
+            files.setdefault(p.stem, p)
+    return [files[k] for k in sorted(files)]
+
+
+def _count_records(p: Path) -> int:
+    if p.suffix == ".jsonl":
+        with p.open("rb") as fh:
+            return sum(1 for _ in fh)
+    if p.suffix == ".parquet":
+        import pyarrow.parquet as pq
+
+        try:
+            return pq.ParquetFile(p).metadata.num_rows
+        except Exception:
+            return 0
+    return 0
+
+
 @router.get("/{project}/sources")
 def list_sources(project: str, stage: str = Query("raw", pattern="^(raw|clean|export)$")):
-    """Enumerate available JSONL files in a stage with row counts."""
+    """Enumerate source files in a stage with row counts.
+    Supports .jsonl (raw/clean) and .parquet (export)."""
     d = _stage_dir(project, stage)
     if not d.exists():
         return {"project": project, "stage": stage, "sources": []}
     out: list[dict] = []
-    for p in sorted(d.glob("*.jsonl")):
-        if p.name.startswith("_"):
-            continue
-        # quick line count without loading file
-        with p.open("rb") as fh:
-            n = sum(1 for _ in fh)
-        out.append({"name": p.stem, "count": n, "bytes": p.stat().st_size})
+    for p in _source_files(d):
+        out.append(
+            {
+                "name": p.stem,
+                "count": _count_records(p),
+                "bytes": p.stat().st_size,
+                "format": p.suffix.lstrip("."),
+            }
+        )
     return {"project": project, "stage": stage, "sources": out}
 
 
@@ -55,9 +85,15 @@ def list_records(
 ):
     d = _stage_dir(project, stage)
     _safe_segment(source)
+    # Try jsonl first, then parquet (export stage)
     path = d / f"{source}.jsonl"
     if not path.exists():
+        path = d / f"{source}.parquet"
+    if not path.exists():
         raise HTTPException(status_code=404, detail=f"no such source: {source}")
+
+    if path.suffix == ".parquet":
+        return _list_parquet_records(project, stage, source, path, offset, limit, q, run_id)
 
     needle = q.lower() if q else None
     records: list[dict] = []
@@ -156,6 +192,53 @@ def _load_subject_manifests(project: str) -> list[dict]:
 def list_subjects(project: str):
     """Return all subject manifests (poet | topic | person | site)."""
     return {"project": project, "subjects": _load_subject_manifests(project)}
+
+
+def _list_parquet_records(
+    project: str,
+    stage: str,
+    source: str,
+    path: Path,
+    offset: int,
+    limit: int,
+    q: str | None,
+    run_id: int | None,
+) -> dict:
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(path)
+    rows = table.to_pylist()
+    needle = q.lower() if q else None
+
+    matched: list[dict] = []
+    for r in rows:
+        if needle:
+            blob = json.dumps(r, ensure_ascii=False).lower()
+            if needle not in blob:
+                continue
+        if run_id is not None:
+            rid = r.get("run_id") or r.get("_run_id")
+            if rid != run_id:
+                continue
+        # decode meta_json column for readability
+        if "meta_json" in r and "meta" not in r:
+            try:
+                r["meta"] = json.loads(r.pop("meta_json"))
+            except (TypeError, json.JSONDecodeError):
+                pass
+        matched.append(r)
+    total = len(matched)
+    page = matched[offset : offset + limit]
+    return {
+        "project": project,
+        "stage": stage,
+        "source": source,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "records": page,
+        "format": "parquet",
+    }
 
 
 @router.get("/{project}/poets")
