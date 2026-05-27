@@ -83,3 +83,43 @@ sources:
   categorize: []
   primary_category: poetry
   fallback_category: commentary
+- type: list_detail
+  list_url: https://www.aldiwan.net/cat-poet-nizar-qabbani
+  base_url: https://www.aldiwan.net/
+  rate_limit_sec: 3.5
+  list_link_selector: a[href^="poem"]
+  record_selector: body
+  fields:
+    title:
+      selector: h2
+      attr: text
+    verses:
+      selector: div.bet-1
+      attr: text
+  name: aldiwan-nizar-qabbani
+  subject: nizar-qabbani
+- type: telegram_web
+  channel: NoticeNizarQabbani
+  rate_limit_sec: 1
+  max_records: 5000
+  name: telegram-nizar-qabbani
+  subject: nizar-qabbani
+- type: list_detail
+  list_url: https://nizarq.com/ar/alphabetical_poems-1.html
+  list_link_selector: a
+  base_url: https://nizarq.com/
+  rate_limit_sec: 2
+  record_selector: body
+  fields:
+    title:
+      selector: h1, h2
+      attr: text
+    verses:
+      selector: article, main, .content
+      attr: text
+  name: nizarq-com-nizar-qabbani
+  subject: nizar-qabbani
+subjects:
+- slug: nizar-qabbani
+  type: person
+  manifest: subjects/nizar-qabbani.yaml

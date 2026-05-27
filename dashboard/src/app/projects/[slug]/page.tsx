@@ -70,19 +70,32 @@ export default async function ProjectDetail({
       {poets.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-            Poets ({poets.length})
+            Subjects ({poets.length})
           </h2>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {poets.map((p) => (
+            {poets.map((p) => {
+              const type = (p as { type?: string }).type || "poet";
+              const typeStyle: Record<string, string> = {
+                poet: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+                person: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
+                topic: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+                site: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200",
+              };
+              return (
               <li
                 key={p.slug}
                 className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-2"
               >
-                <div className="space-y-0.5" dir="auto">
-                  {p.name_ar && (
-                    <div className="text-lg font-semibold">{p.name_ar}</div>
-                  )}
-                  <div className="text-xs font-mono text-zinc-500">{p.slug}</div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="space-y-0.5" dir="auto">
+                    {p.name_ar && (
+                      <div className="text-lg font-semibold">{p.name_ar}</div>
+                    )}
+                    <div className="text-xs font-mono text-zinc-500">{p.slug}</div>
+                  </div>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${typeStyle[type] || typeStyle.poet}`}>
+                    {type}
+                  </span>
                 </div>
                 <div className="text-xs text-zinc-600 dark:text-zinc-400 space-y-0.5">
                   {p.name_en && <div>{p.name_en}</div>}
@@ -107,7 +120,8 @@ export default async function ProjectDetail({
                   </div>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         </section>
       )}

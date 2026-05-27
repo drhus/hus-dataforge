@@ -105,7 +105,12 @@ def list_records(
 
 
 def _load_subject_manifests(project: str) -> list[dict]:
-    """Read subject + legacy poet manifests, returning a unified subject list."""
+    """Read subject + legacy poet manifests, returning a unified subject list.
+
+    When the same slug exists in both `poets/` and `subjects/`, fields from
+    the legacy file are kept as the *base* and the subjects/ file overrides
+    field-by-field (so a new wizard-written manifest doesn't lose the rich
+    metadata from the original)."""
     import yaml
 
     from packages.api.settings import PROJECTS_DIR
@@ -123,15 +128,25 @@ def _load_subject_manifests(project: str) -> list[dict]:
                 subjects[f.stem] = data
             except Exception as e:
                 subjects[f.stem] = {"slug": f.stem, "_error": str(e)}
-    # New canonical subjects dir — overrides legacy if same slug
+    # New canonical subjects dir — MERGE field-by-field, non-empty wins
     sdir = PROJECTS_DIR / project / "subjects"
     if sdir.exists():
         for f in sorted(sdir.glob("*.yaml")):
             try:
-                data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
-                data.setdefault("type", "poet")
-                data["slug"] = f.stem
-                subjects[f.stem] = data
+                new_data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+                base = subjects.get(f.stem, {})
+                merged = dict(base)
+                for k, v in new_data.items():
+                    # only override if the new value is non-empty/non-None
+                    if v in (None, "", [], {}):
+                        continue
+                    if k == "sources" and isinstance(v, dict) and isinstance(merged.get(k), dict):
+                        merged[k] = {**merged[k], **v}
+                    else:
+                        merged[k] = v
+                merged["slug"] = f.stem
+                merged.setdefault("type", "poet")
+                subjects[f.stem] = merged
             except Exception as e:
                 subjects[f.stem] = {"slug": f.stem, "_error": str(e)}
     return list(subjects.values())
@@ -145,7 +160,8 @@ def list_subjects(project: str):
 
 @router.get("/{project}/poets")
 def list_poets(project: str):
-    """Legacy alias — returns subjects with type=poet (or no type), keyed as `poets`."""
+    """Legacy alias — returns ALL subjects (not just type=poet) so wizard-written
+    manifests with type=person|topic|site still show. Kept as `/poets` for
+    backward compat with the dashboard project page."""
     subs = _load_subject_manifests(project)
-    poets = [s for s in subs if s.get("type", "poet") == "poet"]
-    return {"project": project, "poets": poets}
+    return {"project": project, "poets": subs}
