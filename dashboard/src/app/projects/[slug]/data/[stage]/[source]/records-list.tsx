@@ -241,15 +241,54 @@ function RecordCard({ r }: { r: Record<string, unknown> }) {
   const url = (r.source_url as string | undefined) || (r._source_url as string | undefined);
   const runId = (r.run_id as number | string | undefined) ?? (r._run_id as number | undefined);
   const meta = r.meta as Record<string, unknown> | undefined;
+  const category = r.category as string | undefined;
+
+  // Aldiwan structured metadata — pipe-joined strings → array of chips
+  const metaChips: { label: string; value: string; tone: string }[] = [];
+  if (meta) {
+    const fromPipe = (s: unknown) =>
+      typeof s === "string"
+        ? s
+            .split("|")
+            .map((x) => x.trim())
+            .filter((x) => x && !x.startsWith("المزيد") && x !== "متابعة")
+        : [];
+    for (const t of fromPipe(meta.topics)) {
+      metaChips.push({ label: "topic", value: t, tone: "topic" });
+    }
+    for (const c of fromPipe(meta.categories)) {
+      metaChips.push({ label: "category", value: c, tone: "category" });
+    }
+    for (const m of fromPipe(meta.meter)) {
+      metaChips.push({ label: "meter", value: m, tone: "meter" });
+    }
+    for (const rh of fromPipe(meta.rhyme)) {
+      metaChips.push({ label: "rhyme", value: rh, tone: "rhyme" });
+    }
+  }
+
+  const toneClass: Record<string, string> = {
+    topic: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+    category: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
+    meter: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200",
+    rhyme: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+  };
 
   return (
     <article className="space-y-2" dir="auto">
       <header className="flex items-baseline justify-between gap-3">
         <div className="space-y-0.5">
           {title && <h2 className="font-semibold">{title}</h2>}
-          {poet && (
-            <div className="text-xs font-mono text-zinc-500">{poet}</div>
-          )}
+          <div className="flex items-baseline gap-2 text-xs">
+            {poet && (
+              <span className="font-mono text-zinc-500">{poet}</span>
+            )}
+            {category && category !== "poetry" && (
+              <span className="text-[10px] px-1.5 rounded bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                {category}
+              </span>
+            )}
+          </div>
         </div>
         {url && (
           <a
@@ -262,6 +301,21 @@ function RecordCard({ r }: { r: Record<string, unknown> }) {
           </a>
         )}
       </header>
+
+      {metaChips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {metaChips.map((c, i) => (
+            <span
+              key={`${c.tone}-${i}`}
+              className={`text-[11px] px-1.5 py-0.5 rounded ${toneClass[c.tone] || ""}`}
+              title={c.label}
+            >
+              {c.value}
+            </span>
+          ))}
+        </div>
+      )}
+
       <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
         {text.length > 1200 ? text.slice(0, 1200) + "…" : text}
       </pre>

@@ -204,8 +204,24 @@ def normalize_record(
         text = raw.get("verses") or raw.get("text") or ""
         title = raw.get("title")
         url = raw.get("_source_url")
-        scraped_at = None
+        scraped_at = raw.get("_reextracted_at")  # may be None
+        # Preserve aldiwan-specific structured metadata if extracted
         meta = {}
+        for k in (
+            "categories",
+            "category_slugs",
+            "meter",
+            "meter_slug",
+            "rhyme",
+            "rhyme_slug",
+            "topics",
+            "topic_slugs",
+            "related_poets",
+            "related_poet_slugs",
+        ):
+            v = raw.get(k)
+            if v:
+                meta[k] = v
     elif source_kind == "fixture":
         text = raw.get("text") or raw.get("verses") or ""
         title = raw.get("title")

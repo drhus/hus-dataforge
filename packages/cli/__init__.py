@@ -82,6 +82,19 @@ def clean(slug: str) -> None:
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+@app.command(name="re-extract")
+def re_extract(slug: str) -> None:
+    """Re-run field extraction on cached HTML (no network). Use after editing
+    field selectors on a list_detail source to populate new fields without
+    a full re-scrape."""
+    import json
+
+    from packages.engine.reextract import re_extract_project
+
+    result = re_extract_project(slug)
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 @app.command(name="export")
 def export(slug: str) -> None:
     """Export clean records to per-poet Parquet + HF dataset card."""

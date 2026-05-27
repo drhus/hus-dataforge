@@ -22,6 +22,56 @@ sources:
     verses:
       selector: div.bet-1
       attr: text
+    categories:
+      selector: a[href*='cat-poets-']
+      attr: text
+      multi: true
+      join_with: '|'
+    category_slugs:
+      selector: a[href*='cat-poets-']
+      attr: href
+      multi: true
+      join_with: '|'
+    meter:
+      selector: a[href*='sea-']
+      attr: text
+      multi: true
+      join_with: '|'
+    meter_slug:
+      selector: a[href*='sea-']
+      attr: href
+      multi: true
+      join_with: '|'
+    rhyme:
+      selector: a[href*='/q-']
+      attr: text
+      multi: true
+      join_with: '|'
+    rhyme_slug:
+      selector: a[href*='/q-']
+      attr: href
+      multi: true
+      join_with: '|'
+    topics:
+      selector: a[href*='Poems-Topics-']
+      attr: text
+      multi: true
+      join_with: '|'
+    topic_slugs:
+      selector: a[href*='Poems-Topics-']
+      attr: href
+      multi: true
+      join_with: '|'
+    related_poets:
+      selector: a[href*='cat-poet-']
+      attr: text
+      multi: true
+      join_with: '|'
+    related_poet_slugs:
+      selector: a[href*='cat-poet-']
+      attr: href
+      multi: true
+      join_with: '|'
 - name: aldiwan-qabbani
   type: list_detail
   poet: nizar-qabbani
@@ -37,6 +87,56 @@ sources:
     verses:
       selector: div.bet-1
       attr: text
+    categories:
+      selector: a[href*='cat-poets-']
+      attr: text
+      multi: true
+      join_with: '|'
+    category_slugs:
+      selector: a[href*='cat-poets-']
+      attr: href
+      multi: true
+      join_with: '|'
+    meter:
+      selector: a[href*='sea-']
+      attr: text
+      multi: true
+      join_with: '|'
+    meter_slug:
+      selector: a[href*='sea-']
+      attr: href
+      multi: true
+      join_with: '|'
+    rhyme:
+      selector: a[href*='/q-']
+      attr: text
+      multi: true
+      join_with: '|'
+    rhyme_slug:
+      selector: a[href*='/q-']
+      attr: href
+      multi: true
+      join_with: '|'
+    topics:
+      selector: a[href*='Poems-Topics-']
+      attr: text
+      multi: true
+      join_with: '|'
+    topic_slugs:
+      selector: a[href*='Poems-Topics-']
+      attr: href
+      multi: true
+      join_with: '|'
+    related_poets:
+      selector: a[href*='cat-poet-']
+      attr: text
+      multi: true
+      join_with: '|'
+    related_poet_slugs:
+      selector: a[href*='cat-poet-']
+      attr: href
+      multi: true
+      join_with: '|'
 - name: telegram-el-arje
   type: telegram_web
   poet: hudhayfah-alarje
@@ -65,6 +165,13 @@ sources:
     set_category: poetry
   primary_category: poetry
   fallback_category: commentary
+  clean_rules:
+    title_ops: []
+    text_ops: []
+    filter_min_chars: 20
+    filter_min_lines: 0
+    filter_min_arabic_ratio: 0.4
+    drop_if_url_dominated: true
 - name: telegram-nizar-aggregator
   type: telegram_web
   poet: nizar-qabbani
@@ -96,6 +203,56 @@ sources:
     verses:
       selector: div.bet-1
       attr: text
+    categories:
+      selector: a[href*='cat-poets-']
+      attr: text
+      multi: true
+      join_with: '|'
+    category_slugs:
+      selector: a[href*='cat-poets-']
+      attr: href
+      multi: true
+      join_with: '|'
+    meter:
+      selector: a[href*='sea-']
+      attr: text
+      multi: true
+      join_with: '|'
+    meter_slug:
+      selector: a[href*='sea-']
+      attr: href
+      multi: true
+      join_with: '|'
+    rhyme:
+      selector: a[href*='/q-']
+      attr: text
+      multi: true
+      join_with: '|'
+    rhyme_slug:
+      selector: a[href*='/q-']
+      attr: href
+      multi: true
+      join_with: '|'
+    topics:
+      selector: a[href*='Poems-Topics-']
+      attr: text
+      multi: true
+      join_with: '|'
+    topic_slugs:
+      selector: a[href*='Poems-Topics-']
+      attr: href
+      multi: true
+      join_with: '|'
+    related_poets:
+      selector: a[href*='cat-poet-']
+      attr: text
+      multi: true
+      join_with: '|'
+    related_poet_slugs:
+      selector: a[href*='cat-poet-']
+      attr: href
+      multi: true
+      join_with: '|'
   name: aldiwan-nizar-qabbani
   subject: nizar-qabbani
 - type: telegram_web
