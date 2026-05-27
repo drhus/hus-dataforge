@@ -520,3 +520,91 @@ def test_extract_to_meta_rejects_implausible_dates(env: Path):
     out = _apply_extract_to_meta(text, op, meta)
     assert "date" not in meta
     assert out == text  # text unchanged when extraction fails
+
+
+def test_find_fragments_folds_short_excerpt_into_long_poem():
+    """A short text that's fully contained in a longer one (different
+    poems pulled from different sources) should be detected as a fragment."""
+    from packages.pipeline.dedup import find_fragments
+
+    long_poem = (
+        "بيت أول من قصيدة طويلة جميلة المعنى عميقة الأثر\n"
+        "بيت ثاني يكمل المعنى ويضيف عمقا أكبر للنص الشعري\n"
+        "بيت ثالث يربط بين الأبيات السابقة في وحدة موضوعية\n"
+        "بيت رابع يخلص إلى عبرة بليغة في خاتمة القصيدة"
+    )
+    fragment = "بيت ثاني يكمل المعنى ويضيف عمقا أكبر للنص الشعري"
+    different_poem = "نص مختلف تماما لا علاقة له بالقصيدة الأولى من حيث المعنى أو الكلمات"
+    records = [
+        {"id": "long", "text": long_poem},
+        {"id": "frag", "text": fragment},
+        {"id": "other", "text": different_poem},
+    ]
+    pairs = find_fragments(records)
+    # frag (idx 1) should fold into long (idx 0); "other" should not fold
+    assert (1, 0) in pairs
+    assert all(p[0] != 2 for p in pairs)
+
+
+def test_fragment_pass_merges_provenance_and_keeps_long(env: Path):
+    """Whole-pipeline test: a long aldiwan-style record + a short Telegram-style
+    excerpt land in the same bucket, only the long one survives, and its
+    provenance lists both sources."""
+    from packages.api import projects_store
+    from packages.pipeline import run_clean
+
+    projects_store.create_project(
+        "frag",
+        {
+            "sources": [
+                {
+                    "name": "telegram-x",
+                    "type": "telegram_web",
+                    "channel": "x",
+                    "poet": "p",
+                },
+                {
+                    "name": "aldiwan-x",
+                    "type": "list_detail",
+                    "list_url": "https://example.com/list",
+                    "base_url": "https://example.com/",
+                    "list_link_selector": "a",
+                    "record_selector": "body",
+                    "fields": {"title": {"selector": "h1"}, "verses": {"selector": "div"}},
+                    "poet": "p",
+                },
+            ]
+        },
+    )
+    long_text = (
+        "بيت أول من قصيدة طويلة جميلة المعنى عميقة الأثر\n"
+        "بيت ثاني يكمل المعنى ويضيف عمقا أكبر للنص الشعري\n"
+        "بيت ثالث يربط بين الأبيات السابقة في وحدة موضوعية\n"
+        "بيت رابع يخلص إلى عبرة بليغة في خاتمة القصيدة الطويلة"
+    )
+    _write_raw(
+        "frag",
+        "aldiwan-x",
+        [{"title": "Full", "text": long_text, "_source_url": "https://aldiwan/long"}],
+        env / "data",
+    )
+    _write_raw(
+        "frag",
+        "telegram-x",
+        [{
+            "text": "بيت ثاني يكمل المعنى ويضيف عمقا أكبر للنص الشعري",
+            "_channel": "x",
+            "_source_url": "https://t.me/x/1",
+        }],
+        env / "data",
+    )
+
+    result = run_clean("frag")
+    assert result["fragment_dropped"] == 1
+    out = env / "data" / "frag" / "clean" / "p.jsonl"
+    lines = [json.loads(l) for l in out.read_text().splitlines() if l.strip()]
+    assert len(lines) == 1
+    survivor = lines[0]
+    # Long poem won; both sources accumulated on it
+    assert "بيت رابع" in survivor["text"]
+    assert set(survivor["sources"]) == {"aldiwan-x", "telegram-x"}

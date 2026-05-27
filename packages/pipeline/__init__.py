@@ -17,7 +17,7 @@ from packages.api import projects_store
 from packages.api.settings import DATA_DIR, PROJECTS_DIR
 from packages.engine.progress import NullProgress, Progress
 from packages.engine.spec import SourceSpec, project_spec_from_dict
-from packages.pipeline.dedup import Deduper
+from packages.pipeline.dedup import Deduper, find_fragments
 from packages.pipeline.io import write_records
 from packages.pipeline.normalize import normalize_record
 
@@ -208,6 +208,7 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
     # against each other — they have different intent in the corpus)
     # When a dup is folded, accumulate sources + source_urls on the survivor so
     # downstream consumers see all variants ("this poem appears in: X, Y, Z").
+    stats["fragment_dropped"] = 0
     for (poet_slug, category), records in per_bucket.items():
         deduper = Deduper()
         kept: list[dict] = []
@@ -231,6 +232,26 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
             stats["by_poet"][poet_slug]["kept"] += 1
             stats["by_source"][r["source"]]["kept"] += 1
             stats["by_category"][category] += 1
+
+        # Asymmetric pass: fold fragments (e.g. a Telegram excerpt of a
+        # longer poem from aldiwan/another channel) into their longer parents.
+        # MinHashLSH at threshold 0.85 misses these — Jaccard goes near zero
+        # when one set is much smaller, even if every shingle of the small one
+        # appears in the big one. find_fragments uses coverage instead.
+        fragment_pairs = find_fragments(kept)
+        if fragment_pairs:
+            drop_indices = {frag_idx for frag_idx, _ in fragment_pairs}
+            for frag_idx, survivor_idx in fragment_pairs:
+                _merge_provenance(kept[survivor_idx], kept[frag_idx])
+            kept = [r for i, r in enumerate(kept) if i not in drop_indices]
+            n_drop = len(drop_indices)
+            stats["fragment_dropped"] += n_drop
+            stats["by_poet"][poet_slug]["dropped_dedup"] += n_drop
+            stats["by_poet"][poet_slug]["kept"] -= n_drop
+            log.info(
+                "fragments: folded %d short records into longer parents in (%s, %s)",
+                n_drop, poet_slug, category,
+            )
 
         # primary category → <poet>.jsonl (main bucket; what HF/training uses)
         # any other → <poet>__<category>.jsonl sidecar

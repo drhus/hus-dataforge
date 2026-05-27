@@ -2,7 +2,13 @@
 
 `Deduper` is stateful per scope (typically one poet). Call `check()` in
 stream order; the first occurrence is kept, later duplicates return the
-key of the survivor so the caller can attribute provenance back to it."""
+key of the survivor so the caller can attribute provenance back to it.
+
+A separate post-pass — `find_fragments()` — sweeps the surviving records
+to catch the asymmetric case MinHashLSH misses: when one record's text is
+mostly *contained* in a larger record's text (Jaccard goes near zero, but
+the fragment's coverage of the bigger set stays high). This is the
+"Telegram excerpt of a longer aldiwan poem" case."""
 from __future__ import annotations
 
 import re
@@ -29,6 +35,69 @@ def _shingles(text: str, k: int = 5) -> list[str]:
     if len(text) < k:
         return [text]
     return [text[i : i + k] for i in range(len(text) - k + 1)]
+
+
+def find_fragments(
+    records: list[dict],
+    *,
+    containment_threshold: float = 0.75,
+    min_length_ratio: float = 0.6,
+    k: int = 5,
+) -> list[tuple[int, int]]:
+    """Detect records whose text is mostly contained in another, longer
+    record's text — the asymmetric case MinHashLSH at threshold 0.85 misses.
+
+    Returns a list of (fragment_idx, survivor_idx) pairs. The fragment is
+    the smaller record; the survivor is the longer canonical version.
+
+    Algorithm (O(n*m), where m = larger surviving records — fine for
+    bucket sizes in the low thousands per poet):
+
+    1. Process records longest-first so the canonical full version is
+       always seen before any of its fragments.
+    2. For each candidate, compute its shingle set.
+    3. For each already-kept (larger) record, compute |A ∩ B| / |A| (the
+       coverage of the candidate by the kept record).
+    4. If coverage ≥ containment_threshold AND the candidate is meaningfully
+       smaller (len ratio < min_length_ratio), mark it as a fragment of B.
+    """
+    # Pre-compute (idx, shingle-set, len) sorted by length desc
+    indexed: list[tuple[int, set[str], int]] = []
+    for idx, r in enumerate(records):
+        text = r.get("text") or ""
+        sh = set(_shingles(text, k=k))
+        indexed.append((idx, sh, len(text)))
+    indexed.sort(key=lambda t: t[2], reverse=True)
+
+    kept: list[tuple[int, set[str], int]] = []
+    pairs: list[tuple[int, int]] = []
+    for idx, sh, length in indexed:
+        if not sh:
+            kept.append((idx, sh, length))
+            continue
+        # Compare against each already-kept (larger) record
+        best_survivor: int | None = None
+        best_coverage = 0.0
+        for s_idx, s_sh, s_len in kept:
+            if length >= s_len * min_length_ratio:
+                # Too close in size — leave to normal MinHashLSH (or both keep)
+                continue
+            if not s_sh:
+                continue
+            # Quick reject: at most |sh| can overlap; need coverage >= thr
+            inter = len(sh & s_sh)
+            coverage = inter / len(sh)
+            if coverage > best_coverage:
+                best_coverage = coverage
+                best_survivor = s_idx
+                if coverage >= 0.99:
+                    break  # near-perfect containment, stop searching
+        if best_coverage >= containment_threshold and best_survivor is not None:
+            pairs.append((idx, best_survivor))
+        else:
+            # Not a fragment — keep as a potential parent for smaller records
+            kept.append((idx, sh, length))
+    return pairs
 
 
 class Deduper:
