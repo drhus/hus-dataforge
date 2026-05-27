@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { ConfigEditor } from "./config-editor";
 import { JobsPanel } from "./jobs-panel";
 
 export const dynamic = "force-dynamic";
@@ -126,14 +127,10 @@ export default async function ProjectDetail({
         </section>
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Config
-        </h2>
-        <pre className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 text-xs font-mono overflow-x-auto max-h-80">
-          {JSON.stringify(project.config, null, 2)}
-        </pre>
-      </section>
+      <ConfigEditor
+        slug={project.slug}
+        initialConfig={project.config as Record<string, unknown>}
+      />
 
       <JobsPanel slug={project.slug} />
     </div>
