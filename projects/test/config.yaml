@@ -1,2 +1,0 @@
-_yaml: "template: generic\nsources: []\ncleaning: {}\nexport:\n  format: jsonl\n"
-template: generic
