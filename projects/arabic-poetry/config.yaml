@@ -146,11 +146,16 @@ sources:
   categorize:
   - text_contains_any:
     - '#حذيفة_العرجي'
-    - '#قصيدة_جديدة'
-    - '#قال_حذيفة'
     set_category: poetry
   primary_category: poetry
   fallback_category: commentary
+  clean_rules:
+    text_ops_extra:
+    - op: extract_to_meta
+      pattern: \b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})\b
+      meta_key: date
+      as: iso_date_dmy
+      strip: true
 - name: telegram-eqbal-anas
   type: telegram_web
   poet: anas-aldaghim
@@ -160,14 +165,10 @@ sources:
   categorize:
   - text_contains_any:
     - '#أنس_الدغيم'
-    - '#منازل_القصيد'
-    - '#مع_أنس'
     set_category: poetry
   primary_category: poetry
   fallback_category: commentary
   clean_rules:
-    title_ops: []
-    text_ops: []
     filter_min_chars: 20
     filter_min_lines: 0
     filter_min_arabic_ratio: 0.4

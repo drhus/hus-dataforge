@@ -101,10 +101,19 @@ def _clean_title(title: str | None, rules: CleanRules) -> str | None:
     return title.strip() or None
 
 
+# Backwards-compat wrapper: external callers that pass only (text, rules)
+# still work; internally we use the 3-arg form with a meta_out dict.
+def _clean_text_simple(text: str | None, rules: CleanRules) -> str:
+    return _clean_text(text, rules, {})
+
+
 # --- Text ops ---
 
 
-def _apply_text_op(text: str, op: dict) -> str:
+def _apply_text_op(text: str, op: dict, meta_out: dict) -> str:
+    """Apply a single text op. `meta_out` is a dict the op may write to —
+    used by extract_to_meta to pull captured values (e.g. dates) out of the
+    text and onto the record's meta map."""
     name = op.get("op")
     if name == "truncate_before_first_of":
         markers = op.get("markers") or []
@@ -136,16 +145,60 @@ def _apply_text_op(text: str, op: dict) -> str:
         except re.error as e:
             log.warning("text regex_replace failed: %s", e)
             return text
+    if name == "extract_to_meta":
+        return _apply_extract_to_meta(text, op, meta_out)
     log.warning("unknown text op: %s", name)
     return text
 
 
-def _clean_text(text: str | None, rules: CleanRules) -> str:
+def _apply_extract_to_meta(text: str, op: dict, meta_out: dict) -> str:
+    """Find pattern in text → capture/format into meta_out[meta_key].
+    Optionally strip the match from the text (default: True).
+
+    Currently supported `as` converters:
+      - iso_date_dmy: 3 groups interpreted as day/month/year → "YYYY-MM-DD"
+    """
+    pat = op.get("pattern") or ""
+    meta_key = op.get("meta_key") or "extracted"
+    if not pat:
+        return text
+    try:
+        rx = re.compile(pat)
+    except re.error as e:
+        log.warning("extract_to_meta regex failed: %s", e)
+        return text
+    m = rx.search(text)
+    if not m:
+        return text
+
+    as_fmt = op.get("as")
+    value: str = m.group(0)
+    if as_fmt == "iso_date_dmy":
+        try:
+            d = int(m.group(1))
+            mo = int(m.group(2))
+            y = int(m.group(3))
+            if 1 <= d <= 31 and 1 <= mo <= 12 and 1900 <= y <= 2100:
+                value = f"{y:04d}-{mo:02d}-{d:02d}"
+            else:
+                # Implausible date — skip extraction, leave text alone
+                return text
+        except (IndexError, ValueError):
+            return text
+
+    # Don't overwrite an existing meta value (raw extractor wins over text)
+    meta_out.setdefault(meta_key, value)
+    if op.get("strip", True):
+        text = text[: m.start()] + text[m.end() :]
+    return text
+
+
+def _clean_text(text: str | None, rules: CleanRules, meta_out: dict) -> str:
     if not text:
         return ""
     text = ftfy.fix_text(text)
     for op in rules.text_ops:
-        text = _apply_text_op(text, op)
+        text = _apply_text_op(text, op, meta_out)
     # always-on tail: collapse blank-line runs, strip trailing per line
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = "\n".join(ln.rstrip() for ln in text.splitlines()).strip()
@@ -254,7 +307,10 @@ def normalize_record(
         scraped_at = raw.get("_scraped_at")
         meta = {k: v for k, v in raw.items() if k not in {"text", "title", "_source_url"}}
 
-    text = _clean_text(text, rules)
+    # `meta` may already contain source-specific extras (categories, post_id,
+    # views, etc.). Pass it as meta_out so extract_to_meta ops can add fields
+    # like `date` pulled out of the text body.
+    text = _clean_text(text, rules, meta)
     title = _clean_title(title, rules)
 
     if not _passes_filter(text, rules):

@@ -78,6 +78,35 @@ _ALDIWAN_DEFAULT_TEXT_OPS = [
     },
 ]
 
+# Telegram channels universally append: signature hashtags, @handles,
+# decorative emoji, and Unicode bidi marks. Strip these by default so the
+# poem text is clean before dedup. Date extraction is per-source (only some
+# channels date-stamp every post — added on the source where it applies).
+_TELEGRAM_DEFAULT_TEXT_OPS = [
+    # Strip Unicode bidi / direction marks + ZWJ/ZWNJ + BOM. (ZWNJ in
+    # particular is common as a "stealth space" before signature hashtags.)
+    {
+        "op": "regex_replace",
+        "pattern": "[‌‍‎‏‪-‮⁦-⁩﻿]",
+        "replacement": "",
+    },
+    # Strip decorative emoji / pictographs WHEREVER they appear (lots of
+    # channels glue emoji onto the @handle line — e.g. "@x💛🌿" — so we strip
+    # them inline before the line-level rules).
+    {
+        "op": "regex_replace",
+        "pattern": "[☀-➿\U0001f000-\U0001fbff]+",
+        "replacement": "",
+    },
+    # Drop lines that are JUST a hashtag (#author_tag, #قصيدة_جديدة, etc.)
+    {"op": "strip_lines_matching", "pattern": r"^\s*#\S+\s*$"},
+    # Drop lines that are JUST a Telegram @handle (now that emoji are gone,
+    # the trailing junk is whitespace which the \s* tolerates).
+    {"op": "strip_lines_matching", "pattern": r"^\s*@[A-Za-z0-9_]+\s*$"},
+    # Drop lines that are just dots/dashes/equals/underscores (separators)
+    {"op": "strip_lines_matching", "pattern": r"^[\s.\-_=•·]+$"},
+]
+
 _DEFAULT_CLEAN_RULES_BY_TYPE: dict[str, CleanRules] = {
     "list_detail": CleanRules(
         title_ops=list(_ALDIWAN_DEFAULT_TITLE_OPS),
@@ -91,8 +120,8 @@ _DEFAULT_CLEAN_RULES_BY_TYPE: dict[str, CleanRules] = {
         title_ops=list(_ALDIWAN_DEFAULT_TITLE_OPS),
         text_ops=list(_ALDIWAN_DEFAULT_TEXT_OPS),
     ),
-    "telegram_web": CleanRules(),
-    "telegram_mtproto": CleanRules(),
+    "telegram_web": CleanRules(text_ops=list(_TELEGRAM_DEFAULT_TEXT_OPS)),
+    "telegram_mtproto": CleanRules(text_ops=list(_TELEGRAM_DEFAULT_TEXT_OPS)),
     "x_syndication": CleanRules(),
     "fixture": CleanRules(),
 }
@@ -237,15 +266,26 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             clean_rules=default_clean_rules(stype),
         )
 
-        # Per-source override of cleanup rules. User-supplied keys replace
-        # the per-type defaults entirely (no merging).
+        # Per-source override of cleanup rules.
+        #   - title_ops / text_ops  → REPLACE the per-type defaults entirely.
+        #   - title_ops_extra / text_ops_extra → APPEND to the per-type defaults
+        #     (use this when you want to add a rule without losing the
+        #     channel-type baseline, e.g. Telegram hashtag/handle strip).
         cr_raw = s.get("clean_rules") or {}
         if cr_raw and not isinstance(cr_raw, dict):
             raise SpecError(f"source {name!r}: clean_rules must be an object")
         if "title_ops" in cr_raw:
             src.clean_rules.title_ops = list(cr_raw["title_ops"] or [])
+        if "title_ops_extra" in cr_raw:
+            src.clean_rules.title_ops = src.clean_rules.title_ops + list(
+                cr_raw["title_ops_extra"] or []
+            )
         if "text_ops" in cr_raw:
             src.clean_rules.text_ops = list(cr_raw["text_ops"] or [])
+        if "text_ops_extra" in cr_raw:
+            src.clean_rules.text_ops = src.clean_rules.text_ops + list(
+                cr_raw["text_ops_extra"] or []
+            )
         if "filter_min_chars" in cr_raw:
             src.clean_rules.filter_min_chars = int(cr_raw["filter_min_chars"])
         if "filter_min_lines" in cr_raw:

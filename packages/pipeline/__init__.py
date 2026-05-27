@@ -66,8 +66,12 @@ def _subject_manifests(slug: str) -> dict[str, dict]:
 _poet_manifests = _subject_manifests
 
 
-def _categorize(record: dict, source: SourceSpec | None) -> str:
+def _categorize(record: dict, source: SourceSpec | None, raw: dict | None = None) -> str:
     """Return the category for this record under this source's rules.
+
+    Matches against both the raw and cleaned text so signals stripped during
+    cleanup (e.g. hashtags removed by Telegram defaults) are still available
+    as categorize triggers.
 
     If no rules → primary_category. If rules but none match → fallback_category
     (which defaults to primary_category, keeping pre-feature behavior intact)."""
@@ -75,9 +79,15 @@ def _categorize(record: dict, source: SourceSpec | None) -> str:
         return "poetry"
     if not source.categorize:
         return source.primary_category
-    text = record.get("text") or ""
+    haystack_parts = [record.get("text") or ""]
+    if raw is not None:
+        for k in ("text", "verses", "body", "full_text"):
+            v = raw.get(k)
+            if v:
+                haystack_parts.append(str(v))
+    haystack = "\n".join(haystack_parts)
     for rule in source.categorize:
-        if any(needle in text for needle in rule.text_contains_any):
+        if any(needle in haystack for needle in rule.text_contains_any):
             return rule.set_category
     return source.fallback_category or source.primary_category
 
@@ -167,7 +177,7 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
                 if poet:
                     stats["by_poet"][poet]["dropped_filter"] += 1
                 continue
-            category = _categorize(canonical, source)
+            category = _categorize(canonical, source, raw=raw)
             canonical["category"] = category
             canonical["primary_category"] = primary_cat
             bucket = (canonical["poet"] or "_unattributed", category)

@@ -253,6 +253,11 @@ function RecordCard({ r }: { r: Record<string, unknown> }) {
             .map((x) => x.trim())
             .filter((x) => x && !x.startsWith("المزيد") && x !== "متابعة")
         : [];
+    // Date extracted from the body during cleanup (e.g. Telegram channels
+    // that stamp posts d/m/yyyy → ISO YYYY-MM-DD).
+    if (typeof meta.date === "string" && meta.date) {
+      metaChips.push({ label: "date", value: meta.date, tone: "date" });
+    }
     for (const t of fromPipe(meta.topics)) {
       metaChips.push({ label: "topic", value: t, tone: "topic" });
     }
@@ -268,6 +273,7 @@ function RecordCard({ r }: { r: Record<string, unknown> }) {
   }
 
   const toneClass: Record<string, string> = {
+    date: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
     topic: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
     category: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200",
     meter: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200",

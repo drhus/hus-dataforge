@@ -390,3 +390,133 @@ def test_run_clean_end_to_end(env: Path):
     # 2 aldiwan + 2 telegram - 1 filtered - >=1 dedup
     assert len(lines) <= 3
     assert all(r["poet"] == "hudhayfah-alarje" for r in lines)
+
+
+def test_telegram_default_strips_hashtags_and_handles(env: Path):
+    """The shipped telegram_web defaults strip hashtag lines, @handle lines,
+    decorative emoji lines, and Unicode bidi marks."""
+    from packages.api import projects_store
+    from packages.pipeline import run_clean
+
+    projects_store.create_project(
+        "tg",
+        {
+            "sources": [
+                {
+                    "name": "telegram-x",
+                    "type": "telegram_web",
+                    "channel": "x",
+                    "poet": "poet-a",
+                }
+            ]
+        },
+    )
+    _write_raw(
+        "tg",
+        "telegram-x",
+        [
+            {
+                "text": (
+                    "بيت من شعري الجميل\n"
+                    "وبيت آخر يكمل المعنى\n"
+                    "وثالث يختم القصيدة\n"
+                    "#الشاعر_فلان\n"
+                    "⁩\n"
+                    "@my_channel\n"
+                    "💛\n"
+                    "....."
+                ),
+                "_channel": "x",
+                "_source_url": "https://t.me/x/1",
+            }
+        ],
+        env / "data",
+    )
+    run_clean("tg")
+    out = env / "data" / "tg" / "clean" / "poet-a.jsonl"
+    rec = json.loads(out.read_text().splitlines()[0])
+    text = rec["text"]
+    assert "#الشاعر_فلان" not in text
+    assert "@my_channel" not in text
+    assert "💛" not in text
+    assert "⁩" not in text
+    assert "....." not in text
+    # Poem body survives intact
+    assert "بيت من شعري الجميل" in text
+    assert "وبيت آخر يكمل المعنى" in text
+
+
+def test_extract_to_meta_pulls_dmy_date_to_iso(env: Path):
+    """extract_to_meta with `as: iso_date_dmy` lifts a d/m/yyyy date out of
+    the body and onto meta.date as YYYY-MM-DD, while removing it from text."""
+    from packages.api import projects_store
+    from packages.pipeline import run_clean
+
+    projects_store.create_project(
+        "dx",
+        {
+            "sources": [
+                {
+                    "name": "telegram-dated",
+                    "type": "telegram_web",
+                    "channel": "dated",
+                    "poet": "poet-a",
+                    "clean_rules": {
+                        "text_ops": [
+                            {
+                                "op": "extract_to_meta",
+                                "pattern": r"\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})\b",
+                                "meta_key": "date",
+                                "as": "iso_date_dmy",
+                                "strip": True,
+                            }
+                        ]
+                    },
+                }
+            ]
+        },
+    )
+    _write_raw(
+        "dx",
+        "telegram-dated",
+        [
+            {
+                "text": "قصيدة جميلة كاملة الشكل\nببيتين أو ثلاثة من الشعر\n11/5/2026",
+                "_channel": "dated",
+                "_source_url": "https://t.me/dated/1",
+            },
+            {
+                "text": "نص آخر بدون تاريخ\nببيتين كذلك من الشعر",
+                "_channel": "dated",
+                "_source_url": "https://t.me/dated/2",
+            },
+        ],
+        env / "data",
+    )
+    run_clean("dx")
+    out = env / "data" / "dx" / "clean" / "poet-a.jsonl"
+    recs = [json.loads(l) for l in out.read_text().splitlines() if l.strip()]
+    by_url = {r["source_url"]: r for r in recs}
+    r1 = by_url["https://t.me/dated/1"]
+    assert r1["meta"]["date"] == "2026-05-11"
+    assert "11/5/2026" not in r1["text"]
+    r2 = by_url["https://t.me/dated/2"]
+    assert "date" not in r2.get("meta", {}), "no-date records should not gain a date key"
+
+
+def test_extract_to_meta_rejects_implausible_dates(env: Path):
+    """Implausible dates (day=99) are left alone instead of polluting meta."""
+    from packages.pipeline.normalize import _apply_extract_to_meta
+
+    meta: dict = {}
+    op = {
+        "op": "extract_to_meta",
+        "pattern": r"\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})\b",
+        "meta_key": "date",
+        "as": "iso_date_dmy",
+        "strip": True,
+    }
+    text = "version 99/13/2030 of the doc"
+    out = _apply_extract_to_meta(text, op, meta)
+    assert "date" not in meta
+    assert out == text  # text unchanged when extraction fails
