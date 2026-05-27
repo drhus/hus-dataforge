@@ -77,3 +77,45 @@ def test_suggest_returns_stats():
     out = suggest_clean_rules(samples)
     assert "_stats" in out
     assert out["_stats"]["samples"] == 1
+
+
+def test_web_search_classifier_known_domains():
+    from packages.engine.discovery_search import _classify_url
+
+    c = _classify_url("https://www.aldiwan.net/cat-poet-x", [{"title": "x"}])
+    assert c["confidence"] == "high"
+    assert c["source_template"]["type"] == "list_detail"
+    assert "div.bet-1" in str(c["source_template"]["fields"])
+
+
+def test_web_search_classifier_telegram():
+    from packages.engine.discovery_search import _classify_url
+
+    c = _classify_url("https://t.me/s/el_arje", [{"title": "x"}])
+    assert c["site"] == "telegram"
+    assert c["source_template"]["channel"] == "el_arje"
+
+
+def test_web_search_classifier_unknown_low_confidence():
+    from packages.engine.discovery_search import _classify_url
+
+    c = _classify_url("https://some-random-blog.example/poem/123", [{"title": "x"}])
+    assert c["confidence"] == "low"
+    assert c["source_template"]["type"] == "list_detail"
+
+
+def test_web_search_classifier_excludes_search_engines():
+    from packages.engine.discovery_search import _classify_url
+
+    assert _classify_url("https://www.google.com/search?q=x", [{"title": "x"}]) is None
+    assert _classify_url("https://duckduckgo.com/?q=x", [{"title": "x"}]) is None
+
+
+def test_query_variants_for_poet_and_topic():
+    from packages.engine.discovery_search import _query_variants
+
+    poet_qs = _query_variants("نزار قباني", subject_type="poet")
+    assert any("شعر" in q for q in poet_qs)
+    assert any("ديوان" in q for q in poet_qs)
+    topic_qs = _query_variants("زجل", subject_type="topic")
+    assert any("ديوان قصائد" in q for q in topic_qs)

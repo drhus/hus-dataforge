@@ -191,8 +191,11 @@ function ByNameFlow({ project }: { project: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [aliases, setAliases] = useState("");
+  const [subjectType, setSubjectType] = useState<"poet" | "topic" | "person" | "site">("poet");
   const [subjectSlug, setSubjectSlug] = useState("");
-  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const [candidates, setCandidates] = useState<
+    Awaited<ReturnType<typeof api.discoverSources>>["candidates"] | null
+  >(null);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,9 +207,14 @@ function ByNameFlow({ project }: { project: string }) {
     setPicked(new Set());
     try {
       const aliasList = aliases.split(/\s+|,/).map((s) => s.trim()).filter(Boolean);
-      const res = await api.discoverSources(name, aliasList);
+      const res = await api.discoverSources(name, aliasList, subjectType);
       setCandidates(res.candidates);
-      setPicked(new Set(res.candidates.map((_, i) => i)));
+      // pre-pick high + medium confidence (skip low + reference)
+      const initialPicked = new Set<number>();
+      res.candidates.forEach((c, i) => {
+        if (c.confidence === "high" || c.confidence === "medium") initialPicked.add(i);
+      });
+      setPicked(initialPicked);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -222,7 +230,7 @@ function ByNameFlow({ project }: { project: string }) {
       const aliasList = aliases.split(/\s+|,/).map((s) => s.trim()).filter(Boolean);
       const subjectManifest = {
         slug: subjectSlug,
-        type: "poet",
+        type: subjectType,
         name_ar: name,
         aliases: aliasList,
         sources: {} as Record<string, unknown>,
@@ -230,7 +238,8 @@ function ByNameFlow({ project }: { project: string }) {
       let i = 0;
       for (const idx of Array.from(picked).sort()) {
         const c = candidates[idx];
-        const baseName = `${c.site}-${subjectSlug}`;
+        if (!c.source_template) continue; // skip reference-only candidates
+        const baseName = `${c.site.replace(/\./g, "-")}-${subjectSlug}`;
         const tmpl = { ...c.source_template, name: baseName, subject: subjectSlug };
         subjectManifest.sources[c.site] = tmpl.name as string;
         await api.addSource(project, tmpl, i === 0 ? subjectManifest : null);
@@ -255,19 +264,36 @@ function ByNameFlow({ project }: { project: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <label className="block text-sm">
-          <span className="text-zinc-500">Poet / topic name (Arabic preferred)</span>
+          <span className="text-zinc-500">Subject type</span>
+          <select
+            value={subjectType}
+            onChange={(e) =>
+              setSubjectType(e.target.value as "poet" | "topic" | "person" | "site")
+            }
+            className="block w-full mt-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm"
+          >
+            <option value="poet">Poet</option>
+            <option value="topic">Topic</option>
+            <option value="person">Person</option>
+            <option value="site">Site</option>
+          </select>
+        </label>
+        <label className="block text-sm sm:col-span-1">
+          <span className="text-zinc-500">Name (Arabic preferred)</span>
           <input
             dir="auto"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="حذيفة العرجي"
+            placeholder={
+              subjectType === "topic" ? "زجل" : subjectType === "site" ? "qafiyah.com" : "حذيفة العرجي"
+            }
             className="block w-full mt-1 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm"
           />
         </label>
-        <label className="block text-sm">
-          <span className="text-zinc-500">Aliases / handles (comma or space-separated)</span>
+        <label className="block text-sm sm:col-span-1">
+          <span className="text-zinc-500">Aliases (optional)</span>
           <input
             value={aliases}
             onChange={(e) => setAliases(e.target.value)}
@@ -281,8 +307,13 @@ function ByNameFlow({ project }: { project: string }) {
         disabled={busy || !name}
         className="rounded-md bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-3 py-1.5 text-sm font-medium disabled:opacity-50"
       >
-        {busy ? "Probing sources…" : "Discover sources"}
+        {busy ? "Searching the web…" : "Discover sources"}
       </button>
+      <p className="text-xs text-zinc-500">
+        Probes known poetry sites (aldiwan / poetspedia / telegram / X) AND runs a
+        DuckDuckGo search (4 query variants) to surface sources we don&apos;t
+        already know about. Topics use different queries from poets.
+      </p>
 
       {error && <ErrorBox>{error}</ErrorBox>}
 
@@ -298,45 +329,56 @@ function ByNameFlow({ project }: { project: string }) {
             Found {candidates.length} candidate sources — check the ones to keep
           </div>
           <ul className="space-y-2">
-            {candidates.map((c, i) => (
-              <li
-                key={`${c.site}-${i}`}
-                className="flex items-start gap-2 p-2 rounded border border-zinc-100 dark:border-zinc-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={picked.has(i)}
-                  onChange={() => toggle(i)}
-                  className="mt-1"
-                />
-                <div className="flex-1 text-sm">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-mono font-semibold">{c.site}</span>
-                    <span
-                      className={`text-[10px] px-1.5 rounded ${
-                        c.confidence === "high"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
-                          : c.confidence === "medium"
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
-                            : "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                      }`}
-                    >
-                      {c.confidence}
-                    </span>
-                    <a
-                      href={c.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 ml-auto"
-                    >
-                      open ↗
-                    </a>
+            {candidates.map((c, i) => {
+              const isReference = c.confidence === "reference";
+              return (
+                <li
+                  key={`${c.site}-${i}`}
+                  className="flex items-start gap-2 p-2 rounded border border-zinc-100 dark:border-zinc-800"
+                >
+                  <input
+                    type="checkbox"
+                    checked={picked.has(i)}
+                    onChange={() => toggle(i)}
+                    disabled={isReference}
+                    className="mt-1"
+                  />
+                  <div className="flex-1 text-sm space-y-1">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="font-mono font-semibold">{c.site}</span>
+                      <ConfidenceChip confidence={c.confidence} />
+                      <a
+                        href={c.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 ml-auto"
+                      >
+                        open ↗
+                      </a>
+                    </div>
+                    <div className="text-xs text-zinc-500">{c.notes}</div>
+                    <code className="text-[11px] text-zinc-500 break-all">{c.url}</code>
+                    {c._evidence && c._evidence.length > 0 && (
+                      <details className="text-[11px] text-zinc-500">
+                        <summary className="cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300">
+                          {c._evidence.length} search hit{c._evidence.length === 1 ? "" : "s"}
+                        </summary>
+                        <ul className="mt-1 ml-4 space-y-0.5 list-disc">
+                          {c._evidence.slice(0, 5).map((e, j) => (
+                            <li key={j}>
+                              <span dir="auto" className="font-medium text-zinc-700 dark:text-zinc-300">
+                                {e.title.slice(0, 100)}
+                              </span>{" "}
+                              <span className="text-zinc-400">— query: {e.query}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                   </div>
-                  <div className="text-xs text-zinc-500 mt-0.5">{c.notes}</div>
-                  <code className="text-[11px] text-zinc-500 break-all">{c.url}</code>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
 
           <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 mt-3 space-y-3">
@@ -474,5 +516,19 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
     <div className="rounded-md border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/50 p-3 text-sm text-red-700 dark:text-red-300">
       {children}
     </div>
+  );
+}
+
+function ConfidenceChip({ confidence }: { confidence: string }) {
+  const styles: Record<string, string> = {
+    high: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
+    medium: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
+    low: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+    reference: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200",
+  };
+  return (
+    <span className={`text-[10px] px-1.5 rounded ${styles[confidence] || styles.low}`}>
+      {confidence}
+    </span>
   );
 }

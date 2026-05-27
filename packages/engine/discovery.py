@@ -179,27 +179,46 @@ def discover_sources(
     *,
     aliases: list[str] | None = None,
     subject_type: str = "poet",
+    use_web_search: bool = True,
 ) -> list[dict]:
-    """Given a subject name + optional aliases (latin slugs, social handles),
-    probe known sites and return ranked candidates.
+    """Discovery for a subject (poet/topic/person/site).
 
-    Returns a list of dicts (DiscoveryCandidate.__dict__) sorted by confidence.
-    """
+    Combines TWO strategies:
+      1. Probe-based — fast direct checks against ~5 hand-coded poetry sites
+         using the supplied aliases as slug guesses (no search engine needed).
+      2. Web-search-backed — runs query variants on DuckDuckGo and classifies
+         the resulting domains as candidate sources. Crucial for topics
+         (which have no slug to probe) and for finding non-obvious sources.
+
+    Returns a list of dicts sorted by confidence."""
     aliases = [a for a in (aliases or []) if a]
-    if not name and not aliases:
-        return []
+    by_url: dict[str, dict] = {}
 
-    with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=15.0) as client:
-        candidates: list[DiscoveryCandidate] = []
-        for probe in DOMAIN_PROBES:
-            try:
-                candidates.extend(probe(name, aliases, client))
-            except Exception as e:
-                log.warning("probe %s raised: %s", probe.__name__, e)
+    # 1) Static probes — only useful when we have aliases (slugs/handles)
+    if aliases:
+        with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=15.0) as client:
+            for probe in DOMAIN_PROBES:
+                try:
+                    for c in probe(name, aliases, client):
+                        by_url[c.url] = c.__dict__
+                except Exception as e:
+                    log.warning("probe %s raised: %s", probe.__name__, e)
 
-    order = {"high": 0, "medium": 1, "low": 2}
-    candidates.sort(key=lambda c: (order.get(c.confidence, 99), c.site))
-    return [c.__dict__ for c in candidates]
+    # 2) Web-search discovery — broader, finds new sites
+    if use_web_search and name:
+        from packages.engine.discovery_search import discover_via_search
+
+        for c in discover_via_search(name, subject_type=subject_type):
+            # don't overwrite a probe-based high-confidence hit with a search hit
+            if c["url"] in by_url:
+                # but copy evidence over
+                if "_evidence" in c:
+                    by_url[c["url"]]["_evidence"] = c["_evidence"]
+                continue
+            by_url[c["url"]] = c
+
+    order = {"high": 0, "medium": 1, "low": 2, "reference": 3}
+    return sorted(by_url.values(), key=lambda c: (order.get(c.get("confidence"), 99), c.get("site", "")))
 
 
 __all__ = ["discover_sources", "DiscoveryCandidate", "DOMAIN_PROBES"]

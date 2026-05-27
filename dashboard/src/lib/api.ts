@@ -172,14 +172,19 @@ export const api = {
       filter_min_arabic_ratio: number;
       _stats: Record<string, unknown>;
     }>("/preview/suggest-cleanup", { method: "POST", body: JSON.stringify({ samples }) }),
-  discoverSources: (name: string, aliases: string[] = [], subject_type = "poet") =>
+  discoverSources: (
+    name: string,
+    aliases: string[] = [],
+    subject_type: "poet" | "topic" | "person" | "site" = "poet",
+  ) =>
     req<{
       candidates: {
         site: string;
-        confidence: string;
+        confidence: "high" | "medium" | "low" | "reference";
         url: string;
-        source_template: Record<string, unknown>;
+        source_template: Record<string, unknown> | null;
         notes: string;
+        _evidence?: { title: string; url: string; query: string }[];
       }[];
     }>("/preview/discover", {
       method: "POST",
