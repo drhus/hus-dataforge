@@ -93,4 +93,24 @@ export const api = {
   },
   listPoets: (project: string) =>
     req<{ poets: PoetManifest[] }>(`/data/${project}/poets`),
+  getCategorize: (project: string, source: string) =>
+    req<{
+      source: string;
+      rules: { text_contains_any: string[]; set_category: string }[];
+      primary_category: string;
+      fallback_category: string | null;
+    }>(`/projects/${project}/sources/${source}/categorize`),
+  putCategorize: (
+    project: string,
+    source: string,
+    body: {
+      rules: { text_contains_any: string[]; set_category: string }[];
+      primary_category?: string | null;
+      fallback_category?: string | null;
+    },
+  ) =>
+    req<{ ok: boolean }>(`/projects/${project}/sources/${source}/categorize`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
 };

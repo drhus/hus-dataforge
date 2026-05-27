@@ -97,6 +97,75 @@ def test_dedup_exact_and_near(env: Path):
     assert d.is_dup(diff) is False
 
 
+def test_categorize_splits_into_primary_and_sidecar(env: Path):
+    """Records matching the categorize rule go to the primary file;
+    everything else falls back to a sidecar JSONL."""
+    from packages.api import projects_store
+    from packages.pipeline import run_clean
+
+    projects_store.create_project(
+        "cat-test",
+        {
+            "sources": [
+                {
+                    "name": "telegram-el-arje",
+                    "type": "telegram_web",
+                    "channel": "el_arje",
+                    "poet": "hudhayfah-alarje",
+                    "categorize": [
+                        {
+                            "text_contains_any": ["#حذيفة_العرجي", "#قصيدة_جديدة"],
+                            "set_category": "poetry",
+                        }
+                    ],
+                    "fallback_category": "commentary",
+                }
+            ]
+        },
+    )
+    data_root = env / "data"
+    _write_raw(
+        "cat-test",
+        "telegram-el-arje",
+        [
+            {
+                "text": "بيت من شعر العرجي\nقصيدة كاملة هنا\n#حذيفة_العرجي",
+                "_channel": "el_arje",
+                "permalink": "https://t.me/el_arje/100",
+                "_source_url": "https://t.me/el_arje/100",
+            },
+            {
+                "text": "أبارك لصديقي على درجة الماجستير في اللغة العربية",
+                "_channel": "el_arje",
+                "permalink": "https://t.me/el_arje/101",
+                "_source_url": "https://t.me/el_arje/101",
+            },
+            {
+                "text": "قصيدة جديدة من ديواني\nبيت أول جميل\n#قصيدة_جديدة",
+                "_channel": "el_arje",
+                "permalink": "https://t.me/el_arje/102",
+                "_source_url": "https://t.me/el_arje/102",
+            },
+        ],
+        data_root,
+    )
+
+    result = run_clean("cat-test")
+    assert result["input_total"] == 3
+    assert result["by_category"].get("poetry") == 2
+    assert result["by_category"].get("commentary") == 1
+
+    primary = data_root / "cat-test" / "clean" / "hudhayfah-alarje.jsonl"
+    sidecar = data_root / "cat-test" / "clean" / "hudhayfah-alarje__commentary.jsonl"
+    assert primary.exists() and sidecar.exists()
+    primary_lines = [json.loads(l) for l in primary.read_text().splitlines() if l.strip()]
+    sidecar_lines = [json.loads(l) for l in sidecar.read_text().splitlines() if l.strip()]
+    assert len(primary_lines) == 2
+    assert len(sidecar_lines) == 1
+    assert all(r["category"] == "poetry" for r in primary_lines)
+    assert all(r["category"] == "commentary" for r in sidecar_lines)
+
+
 def test_run_clean_end_to_end(env: Path):
     # set up a project with two sources for two poets
     sys.path  # ensure module reload triggered above

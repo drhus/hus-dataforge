@@ -1,7 +1,8 @@
 """Hus-DataForge cleaning pipeline (Milestone 3).
 
 Input:  data/<slug>/raw/<source>.jsonl       — raw scraped records
-Output: data/<slug>/clean/<poet>.jsonl       — canonical, deduped, ar-only
+Output: data/<slug>/clean/<poet>.jsonl       — primary-category (e.g. poetry)
+        data/<slug>/clean/<poet>__<cat>.jsonl — sidecars per non-primary category
 
 Public API:
     run_clean(slug, *, progress=None) -> dict
@@ -15,7 +16,7 @@ from pathlib import Path
 from packages.api import projects_store
 from packages.api.settings import DATA_DIR, PROJECTS_DIR
 from packages.engine.progress import NullProgress, Progress
-from packages.engine.spec import project_spec_from_dict
+from packages.engine.spec import SourceSpec, project_spec_from_dict
 from packages.pipeline.dedup import Deduper
 from packages.pipeline.io import write_records
 from packages.pipeline.normalize import normalize_record
@@ -56,6 +57,22 @@ def _poet_manifests(slug: str) -> dict[str, dict]:
     return out
 
 
+def _categorize(record: dict, source: SourceSpec | None) -> str:
+    """Return the category for this record under this source's rules.
+
+    If no rules → primary_category. If rules but none match → fallback_category
+    (which defaults to primary_category, keeping pre-feature behavior intact)."""
+    if source is None:
+        return "poetry"
+    if not source.categorize:
+        return source.primary_category
+    text = record.get("text") or ""
+    for rule in source.categorize:
+        if any(needle in text for needle in rule.text_contains_any):
+            return rule.set_category
+    return source.fallback_category or source.primary_category
+
+
 def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
     progress = progress or NullProgress()
 
@@ -66,13 +83,7 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
         raw_cfg = yaml.safe_load(raw_cfg["_yaml"]) or {}
     spec = project_spec_from_dict(slug, raw_cfg)
 
-    source_to_poet: dict[str, str] = {}
-    source_kinds: dict[str, str] = {}
-    for s in spec.sources:
-        if s.poet:
-            source_to_poet[s.name] = s.poet
-        source_kinds[s.name] = s.type
-
+    source_by_name: dict[str, SourceSpec] = {s.name: s for s in spec.sources}
     poets = _poet_manifests(slug)
     log.info("clean: loaded %d poet manifests", len(poets))
 
@@ -80,7 +91,8 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
     clean_dir = DATA_DIR / slug / "clean"
     clean_dir.mkdir(parents=True, exist_ok=True)
 
-    per_poet: dict[str, list[dict]] = defaultdict(list)
+    # group by (poet, category) so dedup happens at that scope
+    per_bucket: dict[tuple[str, str], list[dict]] = defaultdict(list)
     stats = {
         "input_total": 0,
         "filtered_out": 0,
@@ -90,14 +102,21 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
             lambda: {"input": 0, "kept": 0, "dropped_filter": 0, "dropped_dedup": 0}
         ),
         "by_source": defaultdict(lambda: {"input": 0, "kept": 0}),
+        "by_category": defaultdict(int),
     }
 
     for source_jsonl in sorted(raw_dir.glob("*.jsonl")):
         if source_jsonl.name == "_index.jsonl":
             continue
         source_name = source_jsonl.stem
-        poet = source_to_poet.get(source_name) or _guess_poet_from_source_name(source_name, poets)
-        kind = _engine_type_to_kind(source_kinds.get(source_name) or _guess_kind_from_source_name(source_name))
+        source = source_by_name.get(source_name)
+        poet = (source.poet if source else None) or _guess_poet_from_source_name(
+            source_name, poets
+        )
+        kind = _engine_type_to_kind(
+            (source.type if source else None) or _guess_kind_from_source_name(source_name)
+        )
+        primary_cat = source.primary_category if source else "poetry"
         progress.start(f"clean:{source_name}")
 
         for raw in _read_jsonl(source_jsonl):
@@ -113,11 +132,17 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
                 if poet:
                     stats["by_poet"][poet]["dropped_filter"] += 1
                 continue
-            per_poet[canonical["poet"] or "_unattributed"].append(canonical)
+            category = _categorize(canonical, source)
+            canonical["category"] = category
+            canonical["primary_category"] = primary_cat
+            bucket = (canonical["poet"] or "_unattributed", category)
+            per_bucket[bucket].append(canonical)
 
         progress.page(str(source_jsonl), stats["by_source"][source_name]["input"])
 
-    for poet_slug, records in per_poet.items():
+    # dedup per bucket (a poem and the same poem reposted as commentary should NOT dedup
+    # against each other — they have different intent in the corpus)
+    for (poet_slug, category), records in per_bucket.items():
         deduper = Deduper()
         kept: list[dict] = []
         for r in records:
@@ -128,7 +153,17 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
             kept.append(r)
             stats["by_poet"][poet_slug]["kept"] += 1
             stats["by_source"][r["source"]]["kept"] += 1
-        out_path = clean_dir / f"{poet_slug}.jsonl"
+            stats["by_category"][category] += 1
+
+        # primary category → <poet>.jsonl (main bucket; what HF/training uses)
+        # any other → <poet>__<category>.jsonl sidecar
+        is_primary = any(
+            s.primary_category == category for s in spec.sources if s.poet == poet_slug
+        ) or (category == "poetry" and not any(s.poet == poet_slug for s in spec.sources))
+        if is_primary:
+            out_path = clean_dir / f"{poet_slug}.jsonl"
+        else:
+            out_path = clean_dir / f"{poet_slug}__{category}.jsonl"
         write_records(out_path, kept)
         log.info("clean: wrote %d records to %s", len(kept), out_path)
         stats["output_total"] += len(kept)
@@ -137,6 +172,7 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
 
     stats["by_poet"] = {k: dict(v) for k, v in stats["by_poet"].items()}
     stats["by_source"] = {k: dict(v) for k, v in stats["by_source"].items()}
+    stats["by_category"] = dict(stats["by_category"])
     return {"project": slug, **stats}
 
 

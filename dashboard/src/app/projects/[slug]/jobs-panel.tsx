@@ -42,23 +42,48 @@ export function JobsPanel({ slug }: { slug: string }) {
     }
   }
 
+  async function runPipeline() {
+    setBusy(true);
+    try {
+      await api.enqueueJob(slug, "scrape");
+      await api.enqueueJob(slug, "clean");
+      await api.enqueueJob(slug, "export");
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Jobs
+          Pipeline
         </h2>
-        <div className="flex gap-2">
-          {(["scrape", "clean", "export"] as const).map((k) => (
-            <button
-              key={k}
-              onClick={() => enqueue(k)}
-              disabled={busy}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
-            >
-              Run {k}
-            </button>
+        <div className="flex gap-2 items-center flex-wrap">
+          {(["scrape", "clean", "export"] as const).map((k, i) => (
+            <div key={k} className="flex items-center gap-2">
+              {i > 0 && <span className="text-zinc-400 text-sm">→</span>}
+              <button
+                onClick={() => enqueue(k)}
+                disabled={busy}
+                className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+              >
+                Run {k}
+              </button>
+            </div>
           ))}
+          <span className="text-zinc-300 dark:text-zinc-700 mx-2">|</span>
+          <button
+            onClick={runPipeline}
+            disabled={busy}
+            className="rounded-md bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-3 py-1.5 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            title="Enqueue scrape → clean → export back-to-back (worker runs them in order)"
+          >
+            Run full pipeline
+          </button>
         </div>
       </div>
 

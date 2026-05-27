@@ -17,6 +17,15 @@ class FieldSpec:
 
 
 @dataclass
+class CategorizeRule:
+    """A single rule: if any of `text_contains_any` appears in the record text,
+    assign category `set_category`. Rules are checked in order; first match wins."""
+
+    text_contains_any: list[str]
+    set_category: str
+
+
+@dataclass
 class SourceSpec:
     name: str
     type: Literal[
@@ -47,6 +56,13 @@ class SourceSpec:
     link_attr: str = "href"
     base_url: str | None = None  # for resolving relative links
     max_records: int | None = None
+
+    # categorization (cleaning-stage)
+    # primary_category records flow into clean/<poet>.jsonl
+    # non-primary records flow into clean/<poet>__<category>.jsonl (sidecars)
+    primary_category: str = "poetry"
+    categorize: list[CategorizeRule] = field(default_factory=list)
+    fallback_category: str | None = None  # if no rule matches; defaults to primary_category
 
 
 @dataclass
@@ -110,6 +126,27 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
         src = SourceSpec(
             name=name, type=stype, record_selector=rec_sel, fields=fields, poet=s.get("poet")
         )
+
+        # categorize block (applies in the cleaning stage)
+        cat_raw = s.get("categorize") or []
+        if cat_raw and not isinstance(cat_raw, list):
+            raise SpecError(f"source {name!r}: categorize must be a list of rules")
+        for rule in cat_raw:
+            if not isinstance(rule, dict):
+                raise SpecError(f"source {name!r}: each categorize rule must be a dict")
+            needles = rule.get("text_contains_any") or []
+            if isinstance(needles, str):
+                needles = [needles]
+            cat = rule.get("set_category")
+            if not needles or not cat:
+                raise SpecError(
+                    f"source {name!r}: categorize rule needs text_contains_any + set_category"
+                )
+            src.categorize.append(CategorizeRule(text_contains_any=needles, set_category=cat))
+        if s.get("primary_category"):
+            src.primary_category = s["primary_category"]
+        if "fallback_category" in s:
+            src.fallback_category = s["fallback_category"]
 
         if stype == "paginated":
             src.url_template = s.get("url_template")
