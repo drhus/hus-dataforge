@@ -83,6 +83,36 @@ def test_spec_rejects_invalid_source(fresh_env):
         run_scrape("broken")
 
 
+def test_telegram_mtproto_min_post_id_scan(fresh_env: Path, monkeypatch):
+    """`_min_post_id_in_source` finds the smallest post_id across a JSONL file
+    — this is what tail-extension uses to compute max_id."""
+    monkeypatch.setenv("DATAFORGE_DATA_DIR", str(fresh_env / "data"))
+    import sys
+
+    for mod in list(sys.modules):
+        if mod.startswith("packages."):
+            del sys.modules[mod]
+    from packages.engine.spiders import telegram_mtproto as tmt
+    from packages.engine.storage import project_data_dir
+
+    raw = project_data_dir("test-slug") / "raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / "telegram-web.jsonl").write_text(
+        "\n".join(
+            [
+                '{"post_id": 4729, "text": "newest"}',
+                '{"post_id": 1500, "text": "middle"}',
+                '{"post_id": 10, "text": "oldest"}',
+                '{"text": "no post_id, should be skipped"}',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert tmt._min_post_id_in_source("test-slug", "telegram-web") == 10
+    assert tmt._min_post_id_in_source("test-slug", "nonexistent") is None
+
+
 def test_telegram_mtproto_manifest_roundtrip(fresh_env: Path, monkeypatch):
     """Manifest written by mtproto spider can be read back for incremental resume."""
     monkeypatch.setenv("DATAFORGE_DATA_DIR", str(fresh_env / "data"))

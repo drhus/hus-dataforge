@@ -64,6 +64,13 @@ class SourceSpec:
     categorize: list[CategorizeRule] = field(default_factory=list)
     fallback_category: str | None = None  # if no rule matches; defaults to primary_category
 
+    # telegram_mtproto tail-extension
+    # If set, the MTProto spider reads min post_id from the named source's
+    # raw JSONL and uses max_id = (that_min - 1) — so we ONLY fetch messages
+    # OLDER than what the (anonymous) web mirror already has. Web mirror stays
+    # primary; MTProto only kicks in for the tail past the mirror's window.
+    extend_below_source: str | None = None
+
 
 @dataclass
 class ProjectSpec:
@@ -204,7 +211,8 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             src.fixture_path = channel
             src.rate_limit_sec = float(s.get("rate_limit_sec", 0.0))
             mr = s.get("max_records")
-            src.max_records = int(mr) if mr is not None else 1000
+            src.max_records = int(mr) if mr is not None else 5000
+            src.extend_below_source = s.get("extend_below_source")
         elif stype == "x_syndication":
             handle = s.get("handle")
             if not handle:

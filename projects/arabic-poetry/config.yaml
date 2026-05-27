@@ -74,3 +74,12 @@ sources:
   categorize: []
   primary_category: poetry
   fallback_category: commentary
+- name: telegram-nizar-aggregator-mtproto-tail
+  type: telegram_mtproto
+  poet: nizar-qabbani
+  channel: nizar_alQabbani
+  max_records: 5000
+  extend_below_source: telegram-nizar-aggregator
+  categorize: []
+  primary_category: poetry
+  fallback_category: commentary

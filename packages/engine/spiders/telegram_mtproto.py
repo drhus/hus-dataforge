@@ -1,23 +1,22 @@
 """Full-history Telegram scraper via the official MTProto API (Telethon).
 
-Safety rules (all enforced automatically):
-1. **One run = one channel.** The single-RQ-worker model means we never run
-   two MTProto pulls concurrently on the same account.
-2. **Telethon's auto flood-wait.** When Telegram returns FLOOD_WAIT_X, Telethon
-   sleeps the requested duration. We log it.
-3. **Incremental after first backfill.** A checkpoint manifest at
-   `data/<slug>/raw/<source>.manifest.json` stores the max post_id seen.
-   Subsequent runs use `min_id=max_post_id` so we only fetch new messages.
-4. **Conservative cap.** First pulls cap at `max_records` (default 5000) so
-   even a runaway first-time fetch is bounded.
-5. **Inter-channel cooldown.** When the engine processes multiple
-   telegram_mtproto sources in one run, it sleeps `inter_channel_cooldown_sec`
-   between them (default 30s) — enforced at the engine level, not here.
+**Preferred usage pattern: tail-extension.**
+Run telegram_web first (anonymous, not tied to your account). Configure this
+spider with `extend_below_source: telegram-<channel>` and it will *only* fetch
+messages OLDER than what the web mirror already has. Public mirror covers the
+recent ~thousands of messages on most channels; this fills in the deeper tail.
 
-What this gives you that telegram_web does not:
-  - the entire channel history, not just whatever t.me/s/<channel> exposes
-  - private channels you are a member of
-  - structured message objects (edits, forwards, media descriptors)
+Safety rules (all enforced automatically):
+1. **One run = one channel** — single RQ worker guarantees this.
+2. **Telethon auto flood-wait** — sleeps when Telegram says to. We log it.
+3. **Incremental after first backfill** — manifest stores max_post_id;
+   subsequent runs use `min_id=max_post_id` so only new messages are fetched.
+4. **Tail-only when extending** — `extend_below_source` reads min post_id from
+   the named source's raw JSONL and passes `max_id=min-1`. Combined with the
+   incremental min_id, this bounds the fetch to a precise window.
+5. **Conservative cap.** Default 5000 per run; tune per source.
+6. **Inter-channel cooldown.** Engine sleeps 30s between back-to-back
+   telegram_mtproto sources (env var `DATAFORGE_TELEGRAM_COOLDOWN_SEC`).
 
 Credentials live in /home/agent/.config/dataforge/telegram.env (mode 600):
     TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_SESSION_PATH"""
@@ -31,7 +30,7 @@ from pathlib import Path
 
 from packages.engine.progress import Progress
 from packages.engine.spec import SourceSpec
-from packages.engine.storage import RecordWriter, project_data_dir, write_raw
+from packages.engine.storage import RecordWriter, project_data_dir
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +60,34 @@ def _load_creds() -> dict[str, str]:
 
 def _manifest_path(slug: str, source_name: str) -> Path:
     return project_data_dir(slug) / "raw" / f"{source_name}.manifest.json"
+
+
+def _min_post_id_in_source(slug: str, source_name: str) -> int | None:
+    """Scan the named source's raw JSONL and return the minimum post_id seen,
+    or None if the file doesn't exist or has no post_id field."""
+    p = project_data_dir(slug) / "raw" / f"{source_name}.jsonl"
+    if not p.exists():
+        return None
+    min_seen: int | None = None
+    with p.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            pid = r.get("post_id")
+            if pid is None:
+                continue
+            try:
+                pid_int = int(pid)
+            except (TypeError, ValueError):
+                continue
+            if min_seen is None or pid_int < min_seen:
+                min_seen = pid_int
+    return min_seen
 
 
 def _read_manifest(slug: str, source_name: str) -> dict:
@@ -104,16 +131,67 @@ class TelegramMTProtoSpider:
         cap = source.max_records or 5000
         session_arg = session[:-8] if session.endswith(".session") else session
 
-        # Incremental backfill — only fetch messages newer than the previous max
+        # Forward-incremental: only fetch messages newer than our last max
         prev = _read_manifest(slug, source.name)
         min_id = int(prev.get("max_post_id") or 0)
-        mode = "incremental" if min_id else "backfill"
+
+        # Tail-extension: if configured, cap upper bound at the other source's
+        # min post_id - 1, so we ONLY fetch messages OLDER than what the
+        # (anonymous) web mirror already has
+        max_id = 0  # 0 means "no upper bound" for Telethon
+        extend_from = source.extend_below_source
+        if extend_from:
+            web_min = _min_post_id_in_source(slug, extend_from)
+            if web_min is None:
+                log.warning(
+                    "telegram_mtproto: extend_below_source=%r exists in config "
+                    "but has no records yet; running without max_id",
+                    extend_from,
+                )
+            elif web_min <= 1:
+                log.info(
+                    "telegram_mtproto: %s — extend source already covers the "
+                    "channel back to post_id=%d; nothing older to fetch",
+                    channel,
+                    web_min,
+                )
+                # write a no-op manifest entry so we don't keep retrying
+                _write_manifest(
+                    slug,
+                    source.name,
+                    {
+                        "channel": channel,
+                        "mode": "extend_exhausted",
+                        "count_this_run": 0,
+                        "count_total": prev.get("count_total") or 0,
+                        "max_post_id": prev.get("max_post_id") or 0,
+                        "extend_below_min_post_id": web_min,
+                        "scraped_at": datetime.utcnow().isoformat() + "Z",
+                    },
+                )
+                return 0
+            else:
+                max_id = web_min - 1
+                log.info(
+                    "telegram_mtproto: %s tail-extending below post_id=%d "
+                    "(web mirror's min from %r)",
+                    channel,
+                    web_min,
+                    extend_from,
+                )
+
+        mode = (
+            "extend_tail"
+            if max_id > 0
+            else ("incremental" if min_id else "backfill")
+        )
         log.info(
-            "telegram_mtproto: %s %s (mode=%s, min_id=%s, cap=%d)",
+            "telegram_mtproto: %s %s (mode=%s, min_id=%s, max_id=%s, cap=%d)",
             slug,
             channel,
             mode,
             min_id,
+            max_id,
             cap,
         )
 
@@ -133,6 +211,8 @@ class TelegramMTProtoSpider:
                 iter_kwargs = {"limit": cap}
                 if min_id > 0:
                     iter_kwargs["min_id"] = min_id
+                if max_id > 0:
+                    iter_kwargs["max_id"] = max_id
 
                 for msg in client.iter_messages(entity, **iter_kwargs):
                     if not isinstance(msg, Message):
