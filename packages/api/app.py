@@ -32,6 +32,7 @@ def create_app() -> FastAPI:
     app.include_router(data_router.router)
     app.include_router(preview_router.router)
     app.include_router(schedules_router.router)
+    app.include_router(schedules_router.global_router)
     app.include_router(curation_router.router)
 
     @app.get("/")

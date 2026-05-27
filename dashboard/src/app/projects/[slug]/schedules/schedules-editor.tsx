@@ -13,8 +13,21 @@ type Sched = {
   last_status?: string;
 };
 
+type Preset = {
+  name: string;
+  id: string;
+  kind: string;
+  cron: string;
+  enabled: boolean;
+  description: string;
+};
+
+type PipelineState = Awaited<ReturnType<typeof api.getPipeline>>;
+
 export function SchedulesEditor({ project }: { project: string }) {
   const [items, setItems] = useState<Sched[]>([]);
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [pipeline, setPipeline] = useState<PipelineState | null>(null);
   const [draft, setDraft] = useState<Sched>({
     id: "",
     kind: "scrape",
@@ -26,8 +39,14 @@ export function SchedulesEditor({ project }: { project: string }) {
 
   const reload = useCallback(async () => {
     try {
-      const r = await api.listSchedules(project);
+      const [r, ps, p] = await Promise.all([
+        api.listSchedules(project),
+        api.listSchedulePresets(),
+        api.getPipeline(project),
+      ]);
       setItems(r.schedules);
+      setPresets(ps.presets);
+      setPipeline(p);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -36,6 +55,33 @@ export function SchedulesEditor({ project }: { project: string }) {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  async function applyPreset(name: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.applySchedulePreset(project, name);
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function togglePipeline() {
+    if (!pipeline) return;
+    const next = pipeline.auto_pipeline === false ? true : false;
+    setBusy(true);
+    try {
+      await api.putPipeline(project, next);
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function save() {
     setBusy(true);
@@ -61,8 +107,104 @@ export function SchedulesEditor({ project }: { project: string }) {
     }
   }
 
+  const chainOn = pipeline?.auto_pipeline !== false;
+  const lastRun = pipeline?.last_run ?? {
+    scrape: null,
+    clean: null,
+    export: null,
+  };
+
   return (
     <div className="space-y-5">
+      <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+              Auto-pipeline
+            </div>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
+              When ON, a successful scrape auto-runs clean; clean auto-runs
+              export. De-duped — if a stage is already queued/running, the chain
+              skips. Toggle OFF to control each stage manually.
+            </p>
+          </div>
+          <button
+            onClick={togglePipeline}
+            disabled={busy || !pipeline}
+            className={
+              "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition " +
+              (chainOn
+                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                : "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700")
+            }
+          >
+            {chainOn ? "ON" : "OFF"}
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          {(["scrape", "clean", "export"] as const).map((stage) => {
+            const r = lastRun[stage];
+            const cls =
+              r?.status === "succeeded"
+                ? "border-emerald-300 dark:border-emerald-900 bg-emerald-50/40 dark:bg-emerald-950/30"
+                : r?.status === "failed"
+                  ? "border-red-300 dark:border-red-900 bg-red-50/40 dark:bg-red-950/30"
+                  : r?.status === "running" || r?.status === "queued"
+                    ? "border-amber-300 dark:border-amber-900 bg-amber-50/40 dark:bg-amber-950/30"
+                    : "border-zinc-200 dark:border-zinc-800";
+            return (
+              <div
+                key={stage}
+                className={`rounded-md border ${cls} p-2`}
+                title={r ? `job #${r.id} (${r.status})` : "never run"}
+              >
+                <div className="text-zinc-500 uppercase tracking-wider text-[10px]">
+                  {stage}
+                </div>
+                <div className="text-zinc-700 dark:text-zinc-300 text-xs">
+                  {r ? (
+                    <>
+                      <div>{r.status}</div>
+                      <div className="text-zinc-500">
+                        {new Date(r.updated_at).toLocaleString()}
+                      </div>
+                      {r.chained && (
+                        <div className="text-emerald-700 dark:text-emerald-400 text-[10px]">
+                          ↳ chained
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-zinc-500">never</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {presets.length > 0 && items.length === 0 && (
+        <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-2">
+          <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            Quick presets
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {presets.map((p) => (
+              <button
+                key={p.name}
+                onClick={() => applyPreset(p.name)}
+                disabled={busy}
+                className="text-xs rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+                title={p.description}
+              >
+                + {p.description}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-3">
         <div className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
           New schedule

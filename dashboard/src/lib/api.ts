@@ -247,6 +247,37 @@ export const api = {
     }),
   deleteSchedule: (project: string, schedule_id: string) =>
     req<void>(`/projects/${project}/schedules/${schedule_id}`, { method: "DELETE" }),
+  listSchedulePresets: () =>
+    req<{
+      presets: {
+        name: string;
+        id: string;
+        kind: string;
+        cron: string;
+        enabled: boolean;
+        description: string;
+      }[];
+    }>(`/schedule-presets`),
+  applySchedulePreset: (project: string, preset: string) =>
+    req<{ id: string; kind: string; cron: string }>(
+      `/projects/${project}/schedules/preset/${preset}`,
+      { method: "POST" },
+    ),
+  getPipeline: (project: string) =>
+    req<{
+      project: string;
+      auto_pipeline: boolean | string[];
+      last_run: Record<
+        "scrape" | "clean" | "export",
+        { id: number; status: string; created_at: string; updated_at: string; chained: boolean } | null
+      >;
+      last_full_pipeline_at: string | null;
+    }>(`/projects/${project}/pipeline`),
+  putPipeline: (project: string, auto_pipeline: boolean | string[]) =>
+    req<{ project: string; auto_pipeline: boolean | string[] }>(
+      `/projects/${project}/pipeline`,
+      { method: "PUT", body: JSON.stringify({ auto_pipeline }) },
+    ),
   postCuration: (
     project: string,
     actions: { id: string; action: string; category?: string; subject?: string }[],

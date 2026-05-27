@@ -120,3 +120,71 @@ def test_facets_and_filtered_listing(client, tmp_path: Path):
     # Unknown source returns 404, not 500
     r = client.get("/data/p/clean/nonexistent/facets")
     assert r.status_code == 404
+
+
+def test_pipeline_config_default_and_update(client):
+    """auto_pipeline defaults to True; PUT updates it; GET reads it back."""
+    client.post("/projects", json={"slug": "pchain", "config": {"sources": []}})
+
+    r = client.get("/projects/pchain/pipeline")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["auto_pipeline"] is True
+    assert body["last_run"] == {"scrape": None, "clean": None, "export": None}
+
+    r = client.put("/projects/pchain/pipeline", json={"auto_pipeline": False})
+    assert r.status_code == 200
+    assert r.json()["auto_pipeline"] is False
+    assert client.get("/projects/pchain/pipeline").json()["auto_pipeline"] is False
+
+    r = client.put("/projects/pchain/pipeline", json={"auto_pipeline": ["clean"]})
+    assert r.status_code == 200
+    assert client.get("/projects/pchain/pipeline").json()["auto_pipeline"] == ["clean"]
+
+
+def test_schedule_preset_creates_named_schedule(client):
+    """Applying a preset upserts a schedule with the canonical id/kind/cron."""
+    client.post("/projects", json={"slug": "presets", "config": {"sources": []}})
+
+    r = client.get("/schedule-presets")
+    assert r.status_code == 200
+    names = {p["name"] for p in r.json()["presets"]}
+    assert "daily-scrape" in names
+
+    r = client.post("/projects/presets/schedules/preset/daily-scrape")
+    assert r.status_code == 200, r.text
+
+    scheds = client.get("/projects/presets/schedules").json()["schedules"]
+    assert any(s["id"] == "daily-scrape" and s["cron"] == "0 4 * * *" for s in scheds)
+
+    # Re-apply is idempotent (no duplicates)
+    client.post("/projects/presets/schedules/preset/daily-scrape")
+    scheds = client.get("/projects/presets/schedules").json()["schedules"]
+    assert sum(1 for s in scheds if s["id"] == "daily-scrape") == 1
+
+    # Unknown preset → 404
+    r = client.post("/projects/presets/schedules/preset/nope")
+    assert r.status_code == 404
+
+
+
+
+def test_chain_helpers_respect_config(client, monkeypatch, tmp_path: Path):
+    """_auto_pipeline_includes follows the config: True/False/list."""
+    client.post("/projects", json={"slug": "ch", "config": {}})
+    # Import after the env-isolation fixture has wired DB/projects dirs
+    from packages.api.jobs_runner import _auto_pipeline_includes
+
+    assert _auto_pipeline_includes("ch", "clean") is True
+    assert _auto_pipeline_includes("ch", "export") is True
+
+    client.put("/projects/ch/pipeline", json={"auto_pipeline": False})
+    assert _auto_pipeline_includes("ch", "clean") is False
+    assert _auto_pipeline_includes("ch", "export") is False
+
+    client.put("/projects/ch/pipeline", json={"auto_pipeline": ["clean"]})
+    assert _auto_pipeline_includes("ch", "clean") is True
+    assert _auto_pipeline_includes("ch", "export") is False
+
+    # Missing project — chain refuses to advance
+    assert _auto_pipeline_includes("does-not-exist", "clean") is False
