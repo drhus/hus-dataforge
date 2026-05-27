@@ -205,7 +205,10 @@ def normalize_record(
         title = raw.get("title")
         url = raw.get("_source_url")
         scraped_at = raw.get("_reextracted_at")  # may be None
-        # Preserve aldiwan-specific structured metadata if extracted
+        # Preserve aldiwan-specific structured metadata if extracted.
+        # `related_poets` and `related_poet_slugs` come from aldiwan with
+        # "المزيد عن X" link text + "متابعة" follow buttons mixed in —
+        # filter those out so we keep just real poet labels.
         meta = {}
         for k in (
             "categories",
@@ -216,12 +219,26 @@ def normalize_record(
             "rhyme_slug",
             "topics",
             "topic_slugs",
-            "related_poets",
-            "related_poet_slugs",
         ):
             v = raw.get(k)
             if v:
                 meta[k] = v
+        rp = raw.get("related_poets")
+        if rp and isinstance(rp, str):
+            cleaned = [
+                x.strip()
+                for x in rp.split("|")
+                if x.strip()
+                and not x.strip().startswith("المزيد")
+                and x.strip() != "متابعة"
+            ]
+            if cleaned:
+                meta["related_poets"] = "|".join(cleaned)
+        rps = raw.get("related_poet_slugs")
+        if rps and isinstance(rps, str):
+            slugs = [s.strip() for s in rps.split("|") if s.strip()]
+            if slugs:
+                meta["related_poet_slugs"] = "|".join(slugs)
     elif source_kind == "fixture":
         text = raw.get("text") or raw.get("verses") or ""
         title = raw.get("title")

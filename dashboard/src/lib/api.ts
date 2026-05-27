@@ -91,16 +91,33 @@ export const api = {
     project: string,
     stage: string,
     source: string,
-    opts: { offset?: number; limit?: number; q?: string; run_id?: number } = {},
+    opts: {
+      offset?: number;
+      limit?: number;
+      q?: string;
+      run_id?: number;
+      topic?: string;
+      meter?: string;
+      category?: string;
+    } = {},
   ) => {
     const qs = new URLSearchParams();
     if (opts.offset) qs.set("offset", String(opts.offset));
     if (opts.limit) qs.set("limit", String(opts.limit));
     if (opts.q) qs.set("q", opts.q);
     if (opts.run_id != null) qs.set("run_id", String(opts.run_id));
+    if (opts.topic) qs.set("topic", opts.topic);
+    if (opts.meter) qs.set("meter", opts.meter);
+    if (opts.category) qs.set("category", opts.category);
     const tail = qs.toString() ? `?${qs.toString()}` : "";
     return req<DataPage>(`/data/${project}/${stage}/${source}${tail}`);
   },
+  listFacets: (project: string, stage: string, source: string) =>
+    req<{
+      topics: [string, number][];
+      meters: [string, number][];
+      categories: [string, number][];
+    }>(`/data/${project}/${stage}/${source}/facets`),
   listPoets: (project: string) =>
     req<{ poets: PoetManifest[] }>(`/data/${project}/poets`),
   getCategorize: (project: string, source: string) =>

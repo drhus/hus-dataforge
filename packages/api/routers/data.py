@@ -82,6 +82,9 @@ def list_records(
     limit: int = Query(50, ge=1, le=500),
     q: str | None = Query(None, description="full-text filter (case-insensitive)"),
     run_id: int | None = Query(None, description="filter by lineage run_id"),
+    topic: str | None = Query(None, description="filter to records whose meta.topics contains this"),
+    meter: str | None = Query(None, description="filter by meter (e.g. 'البسيط')"),
+    category: str | None = Query(None, description="filter by category"),
 ):
     d = _stage_dir(project, stage)
     _safe_segment(source)
@@ -98,6 +101,7 @@ def list_records(
     needle = q.lower() if q else None
     records: list[dict] = []
     total = 0
+    needs_parse = run_id is not None or topic or meter or category
     with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -105,14 +109,26 @@ def list_records(
                 continue
             if needle and needle not in line.lower():
                 continue
-            if run_id is not None:
+            if needs_parse:
                 try:
                     parsed = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                rid = parsed.get("run_id") or parsed.get("_run_id")
-                if rid != run_id:
+                if run_id is not None:
+                    rid = parsed.get("run_id") or parsed.get("_run_id")
+                    if rid != run_id:
+                        continue
+                if category and parsed.get("category") != category:
                     continue
+                meta_obj = parsed.get("meta") or {}
+                if topic:
+                    t = meta_obj.get("topics") or ""
+                    if topic not in str(t):
+                        continue
+                if meter:
+                    m = meta_obj.get("meter") or ""
+                    if meter not in str(m):
+                        continue
                 total += 1
                 if total <= offset:
                     continue
@@ -194,6 +210,79 @@ def list_subjects(project: str):
     return {"project": project, "subjects": _load_subject_manifests(project)}
 
 
+@router.get("/{project}/{stage}/{source}/facets")
+def list_facets(project: str, stage: str, source: str):
+    """Aggregate counts for topics / meter / categories — drives the dashboard
+    facet filters. Reads the source file once and tallies."""
+    d = _stage_dir(project, stage)
+    _safe_segment(source)
+    path = d / f"{source}.jsonl"
+    if not path.exists():
+        path = d / f"{source}.parquet"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"no such source: {source}")
+
+    from collections import Counter
+
+    topics: Counter = Counter()
+    meters: Counter = Counter()
+    categories: Counter = Counter()
+
+    if path.suffix == ".parquet":
+        import pyarrow.parquet as pq
+
+        tbl = pq.read_table(path)
+        for row in tbl.to_pylist():
+            cat = row.get("category")
+            if cat:
+                categories[cat] += 1
+            meta = {}
+            mj = row.get("meta_json")
+            if mj:
+                try:
+                    meta = json.loads(mj)
+                except (TypeError, json.JSONDecodeError):
+                    pass
+            for t in str(meta.get("topics") or "").split("|"):
+                t = t.strip()
+                if t:
+                    topics[t] += 1
+            for m in str(meta.get("meter") or "").split("|"):
+                m = m.strip()
+                if m:
+                    meters[m] += 1
+    else:
+        with path.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                cat = r.get("category")
+                if cat:
+                    categories[cat] += 1
+                meta = r.get("meta") or {}
+                for t in str(meta.get("topics") or "").split("|"):
+                    t = t.strip()
+                    if t:
+                        topics[t] += 1
+                for m in str(meta.get("meter") or "").split("|"):
+                    m = m.strip()
+                    if m:
+                        meters[m] += 1
+    return {
+        "project": project,
+        "stage": stage,
+        "source": source,
+        "topics": topics.most_common(50),
+        "meters": meters.most_common(20),
+        "categories": categories.most_common(20),
+    }
+
+
 def _list_parquet_records(
     project: str,
     stage: str,
@@ -223,7 +312,7 @@ def _list_parquet_records(
         # decode meta_json column for readability
         if "meta_json" in r and "meta" not in r:
             try:
-                r["meta"] = json.loads(r.pop("meta_json"))
+                r["meta"] = json.loads(r.pop("meta_json") or "{}")
             except (TypeError, json.JSONDecodeError):
                 pass
         matched.append(r)
