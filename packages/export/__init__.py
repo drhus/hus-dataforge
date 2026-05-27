@@ -18,8 +18,10 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+from collections import Counter
+
 from packages.api import projects_store
-from packages.api.settings import DATA_DIR
+from packages.api.settings import DATA_DIR, PROJECTS_DIR
 from packages.engine.progress import NullProgress, Progress
 
 log = logging.getLogger(__name__)
@@ -69,60 +71,205 @@ def _write_parquet(records: list[dict], path: Path) -> int:
     return table.num_rows
 
 
-def _dataset_card(slug: str, stats: dict, poets: list[str]) -> str:
-    """Generate a minimal HuggingFace dataset card (README.md frontmatter + body)."""
+def _size_category(total: int) -> str:
+    """HuggingFace `size_categories` tag bracket."""
+    if total < 1_000:
+        return "n<1K"
+    if total < 10_000:
+        return "1K<n<10K"
+    if total < 100_000:
+        return "10K<n<100K"
+    if total < 1_000_000:
+        return "100K<n<1M"
+    return "n>1M"
+
+
+def _percentile(sorted_vals: list[int], pct: float) -> int:
+    if not sorted_vals:
+        return 0
+    idx = max(0, min(len(sorted_vals) - 1, int(round((pct / 100) * (len(sorted_vals) - 1)))))
+    return sorted_vals[idx]
+
+
+def _subject_names(slug: str) -> dict[str, dict]:
+    """Best-effort name lookup: slug → {name_ar, name_en, country, era}."""
+    import yaml
+
+    out: dict[str, dict] = {}
+    for dirname in ("poets", "subjects"):
+        d = PROJECTS_DIR / slug / dirname
+        if not d.exists():
+            continue
+        for f in d.glob("*.yaml"):
+            try:
+                data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            except Exception:
+                continue
+            existing = out.get(f.stem, {})
+            for k in ("name_ar", "name_en", "country", "era", "born", "died"):
+                v = data.get(k)
+                if v and not existing.get(k):
+                    existing[k] = v
+            out[f.stem] = existing
+    return out
+
+
+def _dataset_card(
+    slug: str,
+    stats: dict,
+    poets: list[str],
+    extras: dict,
+) -> str:
+    """Generate a HuggingFace dataset card with richer corpus stats."""
+    names = _subject_names(slug)
+
+    def _label(poet_slug: str) -> str:
+        n = names.get(poet_slug, {})
+        ar = n.get("name_ar")
+        en = n.get("name_en")
+        if ar and en:
+            return f"{ar} ({en})"
+        return ar or en or poet_slug
+
     by_poet_lines = []
-    for p in sorted(stats["by_poet"].keys()):
+    sorted_poets = sorted(
+        stats["by_poet"].keys(),
+        key=lambda p: stats["by_poet"][p]["rows"],
+        reverse=True,
+    )
+    for p in sorted_poets:
+        label = _label(p)
+        meta = names.get(p, {})
+        born = meta.get("born")
+        died = meta.get("died")
+        years = ""
+        if born and died:
+            years = f", {born}–{died}"
+        elif born:
+            years = f", b. {born}"
+        country = meta.get("country")
+        country_s = f" · {country}" if country else ""
+        rows = stats["by_poet"][p]["rows"]
+        words = stats["by_poet"][p]["words"]
         by_poet_lines.append(
-            f"- **{p}** — {stats['by_poet'][p]['rows']} records "
-            f"({stats['by_poet'][p]['words']:,} words)"
+            f"- **{label}**{country_s}{years} — `{p}` — "
+            f"{rows:,} records ({words:,} words)"
         )
+
+    top_topics = extras["topics"][:15]
+    top_meters = extras["meters"][:10]
+    sources_used = extras["sources"][:20]
+
+    topics_md = (
+        "\n".join(f"| {t} | {c:,} |" for t, c in top_topics)
+        if top_topics
+        else "| _none extracted_ | 0 |"
+    )
+    meters_md = (
+        "\n".join(f"| {m} | {c:,} |" for m, c in top_meters)
+        if top_meters
+        else "| _none extracted_ | 0 |"
+    )
+    sources_md = (
+        "\n".join(f"| `{s}` | {c:,} |" for s, c in sources_used)
+        if sources_used
+        else "| _no sources_ | 0 |"
+    )
+    sidecars_md = ""
+    if extras.get("sidecars"):
+        lines = [
+            f"- `{name}.parquet` — alternate category bucket "
+            f"({stats['by_sidecar'][name]['rows']:,} rows, "
+            f"{stats['by_sidecar'][name]['words']:,} words)"
+            for name in extras["sidecars"]
+        ]
+        sidecars_md = (
+            "\n## Sidecar splits\n\n"
+            "Non-primary category buckets (e.g. commentary about a poem rather "
+            "than the poem itself) — kept as separate Parquet files so the "
+            "primary subject splits stay clean for training:\n\n"
+            + "\n".join(lines)
+            + "\n"
+        )
+
     return f"""---
 license: cc-by-4.0
 language:
   - ar
 size_categories:
-  - n<1K
+  - {_size_category(stats['total_rows'])}
 task_categories:
   - text-generation
 tags:
   - arabic
   - poetry
   - {slug}
+pretty_name: {slug}
 ---
 
 # {slug}
 
 Arabic poetry corpus assembled by [hus-dataforge](https://github.com/drhus/hus-dataforge).
 
-## Per-poet counts
+**{stats['total_rows']:,} records · {extras['total_words']:,} words · {extras['total_lines']:,} lines · {len(sorted_poets)} subjects**
+
+Median record length: {extras['len_p50']:,} words (p90 {extras['len_p90']:,}, p99 {extras['len_p99']:,}).
+Cross-source duplicates collapsed: {extras['multi_source_records']:,} records appear in ≥2 sources.
+
+## Subjects
 
 {chr(10).join(by_poet_lines)}
 
+## Top topics
+
+| Topic | Records |
+|-------|---------|
+{topics_md}
+
+## Top meters
+
+| Meter | Records |
+|-------|---------|
+{meters_md}
+
+## Source provenance
+
+Most-frequent originating sources (first hit only — see `sources` column
+for the full list per record when multiple agreed):
+
+| Source | Records |
+|--------|---------|
+{sources_md}
+
+{sidecars_md}
 ## Schema
 
-| Field        | Type    | Notes |
-|--------------|---------|-------|
-| id           | string  | 16-char content hash (title + text) |
-| poet         | string  | Per-poet manifest slug |
-| title        | string  | Cleaned title (may be null for Telegram) |
-| text         | string  | Cleaned poem/verses body |
-| lang         | string  | "ar" or other (langdetect-based) |
-| source       | string  | Source name within the project |
-| source_kind  | string  | aldiwan / telegram / x / fixture |
-| source_url   | string  | Canonical URL of the record |
-| scraped_at   | string  | ISO-8601 |
-| word_count   | int     | |
-| line_count   | int     | |
-| meta_json    | string  | JSON-encoded source-specific metadata |
+| Field          | Type    | Notes |
+|----------------|---------|-------|
+| id             | string  | 16-char content hash (title + text) |
+| poet           | string  | Subject manifest slug |
+| title          | string  | Cleaned title (may be null for Telegram) |
+| text           | string  | Cleaned poem/verses body |
+| lang           | string  | "ar" or other |
+| source         | string  | First-seen source name |
+| sources        | list    | All sources this record was seen in |
+| source_kind    | string  | aldiwan / telegram / x / fixture |
+| source_url     | string  | Canonical URL of the record |
+| source_urls    | list    | All variant URLs |
+| scraped_at     | string  | ISO-8601 |
+| word_count     | int     | |
+| line_count     | int     | |
+| category       | string  | Primary record category (poetry / commentary / quote …) |
+| meta_json      | string  | JSON-encoded source-specific metadata (topics, meter, rhyme, …) |
 
 ## Provenance
 
 Records were scraped from public Arabic poetry sites (primarily
 [aldiwan.net](https://www.aldiwan.net)) and public Telegram channels.
-Cleaning steps: per-source-kind normalization, mojibake fix (ftfy),
-breadcrumb/chrome stripping for aldiwan, exact-hash + MinHash-LSH dedup
-(threshold 0.85) per poet.
+Cleaning steps: per-source rules-driven normalization, mojibake fix
+(ftfy), exact-hash + MinHash-LSH dedup (threshold 0.85) per (poet,
+category). When the same poem is found in multiple sources, all source
+names and URLs are accumulated on the surviving record.
 
 ## License
 
@@ -158,26 +305,81 @@ def run_export(slug: str, *, progress: Progress | None = None) -> dict:
         "project": slug,
         "exported_at": datetime.now(tz=timezone.utc).isoformat(),
         "by_poet": {},
+        "by_sidecar": {},
         "total_rows": 0,
+        "sidecar_rows": 0,
     }
     poets: list[str] = []
+    topic_counter: Counter = Counter()
+    meter_counter: Counter = Counter()
+    source_counter: Counter = Counter()
+    word_lengths: list[int] = []
+    line_lengths: list[int] = []
+    multi_source_records = 0
 
     for poet_jsonl in sorted(clean_dir.glob("*.jsonl")):
-        poet_slug = poet_jsonl.stem
+        stem = poet_jsonl.stem
+        is_sidecar = "__" in stem
         records = list(_read_jsonl(poet_jsonl))
-        progress.start(f"export:{poet_slug}")
-        out_path = export_dir / f"{poet_slug}.parquet"
+        progress.start(f"export:{stem}")
+        out_path = export_dir / f"{stem}.parquet"
         n = _write_parquet(records, out_path)
         words = sum(int(r.get("word_count") or 0) for r in records)
-        stats["by_poet"][poet_slug] = {"rows": n, "words": words}
-        stats["total_rows"] += n
-        poets.append(poet_slug)
+
+        if is_sidecar:
+            # Sidecar bucket (e.g. anas-aldaghim__commentary): export to
+            # Parquet but track separately so primary subject stats reflect
+            # only the canonical category (poetry).
+            stats["by_sidecar"][stem] = {"rows": n, "words": words}
+            stats["sidecar_rows"] += n
+        else:
+            poet_slug = stem
+            stats["by_poet"][poet_slug] = {"rows": n, "words": words}
+            stats["total_rows"] += n
+            poets.append(poet_slug)
+
+            # Aggregate corpus-wide stats — single pass, no extra I/O.
+            for r in records:
+                word_lengths.append(int(r.get("word_count") or 0))
+                line_lengths.append(int(r.get("line_count") or 0))
+                srcs = r.get("sources") or [r.get("source")]
+                if srcs and len(srcs) > 1:
+                    multi_source_records += 1
+                for s in srcs:
+                    if s:
+                        source_counter[s] += 1
+                meta = r.get("meta") or {}
+                for t in str(meta.get("topics") or "").split("|"):
+                    t = t.strip()
+                    if t:
+                        topic_counter[t] += 1
+                for m in str(meta.get("meter") or "").split("|"):
+                    m = m.strip()
+                    if m:
+                        meter_counter[m] += 1
+
         log.info("export: wrote %d rows to %s", n, out_path)
         progress.page(str(out_path), n)
 
+    word_lengths.sort()
+    extras = {
+        "topics": topic_counter.most_common(50),
+        "meters": meter_counter.most_common(20),
+        "sources": source_counter.most_common(30),
+        "total_words": sum(word_lengths),
+        "total_lines": sum(line_lengths),
+        "len_p50": _percentile(word_lengths, 50),
+        "len_p90": _percentile(word_lengths, 90),
+        "len_p99": _percentile(word_lengths, 99),
+        "multi_source_records": multi_source_records,
+        "sidecar_rows": stats["sidecar_rows"],
+        "sidecars": list(stats["by_sidecar"].keys()),
+    }
+    stats["extras"] = extras
+
     # Dataset card + stats
     (export_dir / "README.md").write_text(
-        _dataset_card(slug, stats, poets), encoding="utf-8"
+        _dataset_card(slug, stats, poets, extras), encoding="utf-8"
     )
     (export_dir / "_stats.json").write_text(
         json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8"
