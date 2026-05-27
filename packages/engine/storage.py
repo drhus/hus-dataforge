@@ -37,16 +37,23 @@ def write_raw(slug: str, body: str, url: str) -> tuple[Path, str]:
 
 
 class RecordWriter:
-    """Append-only JSONL writer for raw extracted records."""
+    """Append-only JSONL writer for raw extracted records.
 
-    def __init__(self, slug: str, source_name: str):
+    If `run_id` is set (typically the API Job.id), every written record gets a
+    `_run_id` field stamped on it — enables lineage view ("which records came
+    from job #14?")."""
+
+    def __init__(self, slug: str, source_name: str, *, run_id: int | None = None):
         path = project_data_dir(slug) / "raw" / f"{source_name}.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
         self._fh = path.open("a", encoding="utf-8")
         self.count = 0
+        self.run_id = run_id
 
     def write(self, record: dict) -> None:
+        if self.run_id is not None and "_run_id" not in record:
+            record["_run_id"] = self.run_id
         self._fh.write(json.dumps(record, ensure_ascii=False) + "\n")
         self.count += 1
 

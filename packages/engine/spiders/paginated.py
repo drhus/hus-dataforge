@@ -12,12 +12,12 @@ log = logging.getLogger(__name__)
 
 
 class PaginatedSpider:
-    def run(self, slug: str, source: SourceSpec, progress: Progress) -> int:
+    def run(self, slug: str, source: SourceSpec, progress: Progress, *, run_id: int | None = None) -> int:
         assert source.url_template and source.page_range, "paginated needs url_template + page_range"
         start, end = source.page_range
         client = RateLimitedClient(rate_limit_sec=source.rate_limit_sec)
         try:
-            with RecordWriter(slug, source.name) as writer:
+            with RecordWriter(slug, source.name, run_id=run_id) as writer:
                 for page in range(start, end + 1):
                     url = source.url_template.format(page=page)
                     try:

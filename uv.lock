@@ -854,6 +854,7 @@ name = "hus-dataforge"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "croniter" },
     { name = "datasets" },
     { name = "datasketch" },
     { name = "fastapi" },
@@ -885,6 +886,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "croniter", specifier = ">=2.0" },
     { name = "datasets", specifier = ">=2.19" },
     { name = "datasketch", specifier = ">=1.6" },
     { name = "fastapi", specifier = ">=0.115" },

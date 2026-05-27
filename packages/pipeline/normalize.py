@@ -241,6 +241,7 @@ def normalize_record(
         "scraped_at": scraped_at,
         "word_count": _word_count(text),
         "line_count": _line_count(text),
+        "run_id": raw.get("_run_id"),
         "meta": meta,
     }
 

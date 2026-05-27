@@ -72,7 +72,7 @@ class XSyndicationSpider:
       source.max_records → cap (defaults to whatever the endpoint returns, ~12)
     """
 
-    def run(self, slug: str, source: SourceSpec, progress: Progress) -> int:
+    def run(self, slug: str, source: SourceSpec, progress: Progress, *, run_id: int | None = None) -> int:
         handle = source.fixture_path or ""
         if not handle:
             raise XSyndicationError("set fixture_path to the X handle (e.g. al_arje)")
@@ -93,7 +93,7 @@ class XSyndicationSpider:
                     "or rate-limited. See poet-corpus-strategy.md.",
                     handle,
                 )
-            with RecordWriter(slug, source.name) as writer:
+            with RecordWriter(slug, source.name, run_id=run_id) as writer:
                 cap = source.max_records or len(tweets)
                 for t in tweets[:cap]:
                     t["_source_url"] = t.get("permalink") or url

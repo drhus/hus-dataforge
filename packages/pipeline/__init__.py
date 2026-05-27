@@ -40,21 +40,30 @@ def _read_jsonl(path: Path):
                 log.warning("skipping malformed jsonl line in %s: %s", path, e)
 
 
-def _poet_manifests(slug: str) -> dict[str, dict]:
-    """Load poet manifests from projects/<slug>/poets/*.yaml."""
+def _subject_manifests(slug: str) -> dict[str, dict]:
+    """Load subject manifests from both the new `subjects/` dir (canonical)
+    and the legacy `poets/` dir. Subjects override poets if same slug. Legacy
+    poet manifests are treated as `type: poet`."""
     import yaml
 
     out: dict[str, dict] = {}
-    pdir = PROJECTS_DIR / slug / "poets"
-    if not pdir.exists():
-        return out
-    for f in pdir.glob("*.yaml"):
-        try:
-            data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
-            out[f.stem] = data
-        except Exception as e:
-            log.warning("could not load %s: %s", f, e)
+    for dirname, default_type in (("poets", "poet"), ("subjects", None)):
+        pdir = PROJECTS_DIR / slug / dirname
+        if not pdir.exists():
+            continue
+        for f in pdir.glob("*.yaml"):
+            try:
+                data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+                if default_type and "type" not in data:
+                    data["type"] = default_type
+                out[f.stem] = data
+            except Exception as e:
+                log.warning("could not load %s: %s", f, e)
     return out
+
+
+# Backward-compat alias (tests/external callers still use this name)
+_poet_manifests = _subject_manifests
 
 
 def _categorize(record: dict, source: SourceSpec | None) -> str:
@@ -84,8 +93,8 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
     spec = project_spec_from_dict(slug, raw_cfg)
 
     source_by_name: dict[str, SourceSpec] = {s.name: s for s in spec.sources}
-    poets = _poet_manifests(slug)
-    log.info("clean: loaded %d poet manifests", len(poets))
+    subjects = _subject_manifests(slug)
+    log.info("clean: loaded %d subject manifests", len(subjects))
 
     raw_dir = DATA_DIR / slug / "raw"
     clean_dir = DATA_DIR / slug / "clean"
@@ -129,9 +138,12 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
             continue
         source_name = source_jsonl.stem
         source = source_by_name.get(source_name)
-        poet = (source.poet if source else None) or _guess_poet_from_source_name(
-            source_name, poets
+        subject_slug = (
+            (source.subject if source else None)
+            or (source.poet if source else None)
+            or _guess_poet_from_source_name(source_name, subjects)
         )
+        poet = subject_slug  # legacy local name
         kind = _engine_type_to_kind(
             (source.type if source else None) or _guess_kind_from_source_name(source_name)
         )
@@ -162,6 +174,25 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
             per_bucket[bucket].append(canonical)
 
         progress.page(str(source_jsonl), stats["by_source"][source_name]["input"])
+
+    # Curation overlay — user bulk actions from the records browser persist
+    # in data/<slug>/curation.jsonl and survive re-cleaning.
+    from packages.api.curation import load_overlay
+
+    overlay = load_overlay(slug)
+    if overlay:
+        regrouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
+        for bucket, recs in per_bucket.items():
+            for r in recs:
+                ov = overlay.get(r.get("id"))
+                if ov and ov.get("discarded"):
+                    continue
+                new_cat = (ov or {}).get("category") or bucket[1]
+                new_sub = (ov or {}).get("subject") or bucket[0]
+                if ov and ("category" in ov or "subject" in ov):
+                    r = {**r, "category": new_cat, "poet": new_sub}
+                regrouped[(new_sub, new_cat)].append(r)
+        per_bucket = regrouped
 
     # dedup per bucket (a poem and the same poem reposted as commentary should NOT dedup
     # against each other — they have different intent in the corpus)

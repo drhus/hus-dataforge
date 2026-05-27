@@ -23,7 +23,7 @@ def run_scrape(project: str, job_id: int) -> dict:
         session.commit()
         progress = DBProgress(session, job_id)
         try:
-            result = engine_run_scrape(project, progress=progress)
+            result = engine_run_scrape(project, progress=progress, run_id=job_id)
             return result
         finally:
             progress.finish()

@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 
 
 class MultiLevelListDetailSpider:
-    def run(self, slug: str, source: SourceSpec, progress: Progress) -> int:
+    def run(self, slug: str, source: SourceSpec, progress: Progress, *, run_id: int | None = None) -> int:
         assert source.list_url and source.list_link_selector and source.sub_link_selector
 
         client = RateLimitedClient(rate_limit_sec=source.rate_limit_sec)
@@ -64,7 +64,7 @@ class MultiLevelListDetailSpider:
                 ordered_details = ordered_details[: source.max_records]
             log.info("multi_level: %d unique detail URLs to scrape", len(ordered_details))
 
-            with RecordWriter(slug, source.name) as writer:
+            with RecordWriter(slug, source.name, run_id=run_id) as writer:
                 for url in ordered_details:
                     try:
                         html = client.get(url)

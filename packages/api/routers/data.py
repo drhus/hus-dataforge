@@ -51,6 +51,7 @@ def list_records(
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     q: str | None = Query(None, description="full-text filter (case-insensitive)"),
+    run_id: int | None = Query(None, description="filter by lineage run_id"),
 ):
     d = _stage_dir(project, stage)
     _safe_segment(source)
@@ -66,9 +67,23 @@ def list_records(
             line = line.strip()
             if not line:
                 continue
-            if needle:
-                if needle not in line.lower():
+            if needle and needle not in line.lower():
+                continue
+            if run_id is not None:
+                try:
+                    parsed = json.loads(line)
+                except json.JSONDecodeError:
                     continue
+                rid = parsed.get("run_id") or parsed.get("_run_id")
+                if rid != run_id:
+                    continue
+                total += 1
+                if total <= offset:
+                    continue
+                if len(records) >= limit:
+                    continue
+                records.append(parsed)
+                continue
             total += 1
             if total <= offset:
                 continue
@@ -89,24 +104,48 @@ def list_records(
     }
 
 
-@router.get("/{project}/poets")
-def list_poets(project: str):
-    """Return poet manifests for a project (from projects/<slug>/poets/*.yaml)."""
+def _load_subject_manifests(project: str) -> list[dict]:
+    """Read subject + legacy poet manifests, returning a unified subject list."""
     import yaml
 
     from packages.api.settings import PROJECTS_DIR
 
     _safe_segment(project)
+    subjects: dict[str, dict] = {}
+    # Legacy poets dir → implicit type=poet
     pdir = PROJECTS_DIR / project / "poets"
-    if not pdir.exists():
-        return {"project": project, "poets": []}
+    if pdir.exists():
+        for f in sorted(pdir.glob("*.yaml")):
+            try:
+                data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+                data.setdefault("type", "poet")
+                data["slug"] = f.stem
+                subjects[f.stem] = data
+            except Exception as e:
+                subjects[f.stem] = {"slug": f.stem, "_error": str(e)}
+    # New canonical subjects dir — overrides legacy if same slug
+    sdir = PROJECTS_DIR / project / "subjects"
+    if sdir.exists():
+        for f in sorted(sdir.glob("*.yaml")):
+            try:
+                data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+                data.setdefault("type", "poet")
+                data["slug"] = f.stem
+                subjects[f.stem] = data
+            except Exception as e:
+                subjects[f.stem] = {"slug": f.stem, "_error": str(e)}
+    return list(subjects.values())
 
-    poets: list[dict] = []
-    for f in sorted(pdir.glob("*.yaml")):
-        try:
-            data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
-            data["slug"] = f.stem
-            poets.append(data)
-        except Exception as e:
-            poets.append({"slug": f.stem, "_error": str(e)})
+
+@router.get("/{project}/subjects")
+def list_subjects(project: str):
+    """Return all subject manifests (poet | topic | person | site)."""
+    return {"project": project, "subjects": _load_subject_manifests(project)}
+
+
+@router.get("/{project}/poets")
+def list_poets(project: str):
+    """Legacy alias — returns subjects with type=poet (or no type), keyed as `poets`."""
+    subs = _load_subject_manifests(project)
+    poets = [s for s in subs if s.get("type", "poet") == "poet"]
     return {"project": project, "poets": poets}

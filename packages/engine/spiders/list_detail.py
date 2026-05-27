@@ -14,7 +14,14 @@ log = logging.getLogger(__name__)
 
 
 class ListDetailSpider:
-    def run(self, slug: str, source: SourceSpec, progress: Progress) -> int:
+    def run(
+        self,
+        slug: str,
+        source: SourceSpec,
+        progress: Progress,
+        *,
+        run_id: int | None = None,
+    ) -> int:
         assert source.list_url and source.list_link_selector
 
         client = RateLimitedClient(rate_limit_sec=source.rate_limit_sec)
@@ -32,7 +39,7 @@ class ListDetailSpider:
                 urls = urls[: source.max_records]
             log.info("list_detail: %d detail URLs to fetch", len(urls))
 
-            with RecordWriter(slug, source.name) as writer:
+            with RecordWriter(slug, source.name, run_id=run_id) as writer:
                 for url in urls:
                     try:
                         html = client.get(url)

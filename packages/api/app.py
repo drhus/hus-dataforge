@@ -4,9 +4,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from packages.api.db import engine
+from packages.api.routers import curation as curation_router
 from packages.api.routers import data as data_router
 from packages.api.routers import jobs as jobs_router
+from packages.api.routers import preview as preview_router
 from packages.api.routers import projects as projects_router
+from packages.api.routers import schedules as schedules_router
 from packages.api.settings import CORS_ORIGINS, ensure_dirs
 
 
@@ -27,6 +30,9 @@ def create_app() -> FastAPI:
     app.include_router(projects_router.router)
     app.include_router(jobs_router.router)
     app.include_router(data_router.router)
+    app.include_router(preview_router.router)
+    app.include_router(schedules_router.router)
+    app.include_router(curation_router.router)
 
     @app.get("/")
     def root():

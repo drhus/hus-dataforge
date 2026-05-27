@@ -199,3 +199,78 @@ def reset_cleanup_rules(slug: str, source_name: str):
     if not found:
         raise HTTPException(status_code=404, detail=f"source {source_name!r} not found in project")
     projects_store.update_project(slug, cfg)
+
+
+# --- Add source from wizard ---
+
+
+class SubjectManifestIn(BaseModel):
+    slug: str
+    type: str = "poet"
+    name_ar: str | None = None
+    name_en: str | None = None
+    aliases: list[str] = Field(default_factory=list)
+    sources: dict[str, str | int] = Field(default_factory=dict)
+    notes: str | None = None
+
+
+class AddSourceIn(BaseModel):
+    source: dict = Field(default_factory=dict)
+    subject: SubjectManifestIn | None = None
+
+
+@router.post("/{slug}/sources", status_code=201)
+def add_source(slug: str, body: AddSourceIn):
+    """Append a new source to the project config; optionally write/update
+    a subject manifest under projects/<slug>/subjects/<slug>.yaml.
+
+    This is what the add-source wizards (by-URL + by-name) call to persist
+    the plan once the user has approved it."""
+    import yaml
+
+    from packages.api.settings import PROJECTS_DIR
+
+    try:
+        p = projects_store.get_project(slug)
+    except ProjectError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    src = dict(body.source or {})
+    if not src.get("name"):
+        raise HTTPException(status_code=400, detail="source.name is required")
+    if not src.get("type"):
+        raise HTTPException(status_code=400, detail="source.type is required")
+
+    cfg = p.config
+    existing_names = {s.get("name") for s in cfg.get("sources") or [] if isinstance(s, dict)}
+    if src["name"] in existing_names:
+        raise HTTPException(status_code=409, detail=f"source {src['name']!r} already exists")
+    cfg.setdefault("sources", []).append(src)
+
+    if body.subject:
+        subj_dir = PROJECTS_DIR / slug / "subjects"
+        subj_dir.mkdir(parents=True, exist_ok=True)
+        subj_path = subj_dir / f"{body.subject.slug}.yaml"
+        manifest = body.subject.model_dump(exclude_none=True)
+        manifest.pop("slug", None)  # slug = filename, redundant in body
+        subj_path.write_text(
+            yaml.safe_dump(manifest, sort_keys=False, allow_unicode=True),
+            encoding="utf-8",
+        )
+        # link the source to this subject
+        src["subject"] = body.subject.slug
+        # ensure subjects list on project config
+        subs = cfg.setdefault("subjects", [])
+        if not any(
+            isinstance(x, dict) and x.get("slug") == body.subject.slug for x in subs
+        ):
+            subs.append(
+                {
+                    "slug": body.subject.slug,
+                    "type": body.subject.type,
+                    "manifest": f"subjects/{body.subject.slug}.yaml",
+                }
+            )
+
+    projects_store.update_project(slug, cfg)
+    return {"ok": True, "source": src, "subject": body.subject.slug if body.subject else None}

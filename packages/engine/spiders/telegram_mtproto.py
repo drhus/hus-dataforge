@@ -113,7 +113,14 @@ class TelegramMTProtoSpider:
       source.rate_limit_sec → ignored (Telethon manages flood-wait)
     """
 
-    def run(self, slug: str, source: SourceSpec, progress: Progress) -> int:
+    def run(
+        self,
+        slug: str,
+        source: SourceSpec,
+        progress: Progress,
+        *,
+        run_id: int | None = None,
+    ) -> int:
         from telethon import TelegramClient
         from telethon.tl.types import Message
 
@@ -206,7 +213,7 @@ class TelegramMTProtoSpider:
             entity = client.get_entity(channel)
 
             max_seen = min_id
-            with RecordWriter(slug, source.name) as writer:
+            with RecordWriter(slug, source.name, run_id=run_id) as writer:
                 last_url = None
                 iter_kwargs = {"limit": cap}
                 if min_id > 0:

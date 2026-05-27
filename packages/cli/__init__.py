@@ -100,6 +100,18 @@ def push(
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+@app.command(name="schedule-tick")
+def schedule_tick() -> None:
+    """Evaluate all project schedules and enqueue due jobs. Called once a
+    minute by the dataforge-scheduler systemd timer."""
+    import json
+
+    from packages.api import scheduler
+
+    result = scheduler.tick()
+    typer.echo(json.dumps(result, ensure_ascii=False))
+
+
 @app.command(name="telegram-login")
 def telegram_login() -> None:
     """One-time interactive login for the Telegram MTProto spider.

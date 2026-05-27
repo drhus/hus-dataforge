@@ -82,7 +82,14 @@ class TelegramWebSpider:
       source.rate_limit_sec → between page fetches (default 1.0; t.me is permissive)
     """
 
-    def run(self, slug: str, source: SourceSpec, progress: Progress) -> int:
+    def run(
+        self,
+        slug: str,
+        source: SourceSpec,
+        progress: Progress,
+        *,
+        run_id: int | None = None,
+    ) -> int:
         assert source.list_url, "telegram_web needs list_url set to https://t.me/s/<channel>"
         # extract channel from /s/<channel>
         parts = source.list_url.rstrip("/").split("/")
@@ -96,7 +103,7 @@ class TelegramWebSpider:
         seen_ids: set[int] = set()
 
         try:
-            with RecordWriter(slug, source.name) as writer:
+            with RecordWriter(slug, source.name, run_id=run_id) as writer:
                 before: int | None = None
                 while writer.count < cap:
                     url = _page_url(channel, before)

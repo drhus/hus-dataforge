@@ -13,7 +13,7 @@ class FixtureSpider:
     """Reads HTML from a local file under the project dir or repo root.
     Useful for tests and offline development against captured snapshots."""
 
-    def run(self, slug: str, source: SourceSpec, progress: Progress) -> int:
+    def run(self, slug: str, source: SourceSpec, progress: Progress, *, run_id: int | None = None) -> int:
         assert source.fixture_path, "fixture spider needs fixture_path"
         p = Path(source.fixture_path)
         if not p.is_absolute():
@@ -29,7 +29,7 @@ class FixtureSpider:
         html = p.read_text(encoding="utf-8")
         write_raw(slug, html, f"fixture://{source.fixture_path}")
         records = extract_records(html, source.record_selector, source.fields)
-        with RecordWriter(slug, source.name) as writer:
+        with RecordWriter(slug, source.name, run_id=run_id) as writer:
             for r in records:
                 r["_source_url"] = f"fixture://{source.fixture_path}"
                 writer.write(r)

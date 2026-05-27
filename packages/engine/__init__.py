@@ -26,7 +26,7 @@ TELEGRAM_INTER_CHANNEL_COOLDOWN_SEC = int(
 )
 
 
-def run_scrape(slug: str, *, progress: Progress | None = None) -> dict:
+def run_scrape(slug: str, *, progress: Progress | None = None, run_id: int | None = None) -> dict:
     progress = progress or NullProgress()
     raw_cfg = projects_store.get_project(slug).config
     if "_yaml" in raw_cfg and isinstance(raw_cfg["_yaml"], str):
@@ -56,8 +56,14 @@ def run_scrape(slug: str, *, progress: Progress | None = None) -> dict:
             time.sleep(TELEGRAM_INTER_CHANNEL_COOLDOWN_SEC)
 
         progress.start(source.name)
-        log.info("scrape: %s/%s (%s)", slug, source.name, source.type)
-        totals_by_source[source.name] = SpiderCls().run(slug, source, progress)
+        log.info("scrape: %s/%s (%s, run_id=%s)", slug, source.name, source.type, run_id)
+        spider = SpiderCls()
+        # Spiders that opt-in to run_id stamping (newer spider-base contract).
+        # Older spiders ignore the kwarg via the call check.
+        try:
+            totals_by_source[source.name] = spider.run(slug, source, progress, run_id=run_id)
+        except TypeError:
+            totals_by_source[source.name] = spider.run(slug, source, progress)
         last_was_mtproto = source.type == "telegram_mtproto"
 
     progress.finish()

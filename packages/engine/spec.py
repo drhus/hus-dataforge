@@ -125,7 +125,11 @@ class SourceSpec:
     ]
     record_selector: str
     fields: dict[str, FieldSpec]
-    poet: str | None = None  # poet-slug this source belongs to (for cleaning/attribution)
+    # `subject` is the canonical name; `poet` is kept as a legacy alias.
+    # When both are set, `subject` wins. Either field carries the slug of the
+    # subject manifest this source contributes to.
+    subject: str | None = None
+    poet: str | None = None  # legacy alias for subject (type=poet)
 
     # paginated
     url_template: str | None = None
@@ -221,12 +225,15 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             raise SpecError(f"source {name!r}: at least one field is required")
         fields = {k: _field_from_raw(v) for k, v in fields_raw.items()}
 
+        # subject takes precedence; poet is the legacy alias
+        subj = s.get("subject") or s.get("poet")
         src = SourceSpec(
             name=name,
             type=stype,
             record_selector=rec_sel,
             fields=fields,
-            poet=s.get("poet"),
+            subject=subj,
+            poet=s.get("poet"),  # preserved for older callers/tests
             clean_rules=default_clean_rules(stype),
         )
 

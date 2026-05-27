@@ -30,6 +30,7 @@ dependencies = [
     "selectolax>=0.3.21",
     "telethon>=1.36",
     "pyarrow>=15.0",
+    "croniter>=2.0",
 ]
 
 [dependency-groups]
