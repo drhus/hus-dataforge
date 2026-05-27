@@ -113,4 +113,36 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+  getCleanupRules: (project: string, source: string) =>
+    req<{
+      source: string;
+      source_type: string;
+      is_overridden: boolean;
+      rules: {
+        title_ops: { op: string; [k: string]: unknown }[];
+        text_ops: { op: string; [k: string]: unknown }[];
+        filter_min_chars: number;
+        filter_min_lines: number;
+        filter_min_arabic_ratio: number;
+        drop_if_url_dominated: boolean;
+      };
+    }>(`/projects/${project}/sources/${source}/cleanup`),
+  putCleanupRules: (
+    project: string,
+    source: string,
+    body: {
+      title_ops?: { op: string; [k: string]: unknown }[];
+      text_ops?: { op: string; [k: string]: unknown }[];
+      filter_min_chars?: number;
+      filter_min_lines?: number;
+      filter_min_arabic_ratio?: number;
+      drop_if_url_dominated?: boolean;
+    },
+  ) =>
+    req<{ ok: boolean }>(`/projects/${project}/sources/${source}/cleanup`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  resetCleanupRules: (project: string, source: string) =>
+    req<void>(`/projects/${project}/sources/${source}/cleanup`, { method: "DELETE" }),
 };

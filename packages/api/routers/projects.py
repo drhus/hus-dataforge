@@ -107,3 +107,95 @@ def put_categorize(slug: str, source_name: str, body: CategorizeUpdate):
         raise HTTPException(status_code=404, detail=f"source {source_name!r} not found in project")
     projects_store.update_project(slug, cfg)
     return {"ok": True, "source": source_name, "rules": body.rules}
+
+
+# --- Cleanup-rule editor ---
+
+
+class CleanRulesIn(BaseModel):
+    title_ops: list[dict] | None = None
+    text_ops: list[dict] | None = None
+    filter_min_chars: int | None = None
+    filter_min_lines: int | None = None
+    filter_min_arabic_ratio: float | None = None
+    drop_if_url_dominated: bool | None = None
+
+
+@router.get("/{slug}/sources/{source_name}/cleanup")
+def get_cleanup_rules(slug: str, source_name: str):
+    """Return the EFFECTIVE cleanup rules (type-defaults merged with overrides)."""
+    from packages.engine.spec import default_clean_rules
+
+    try:
+        p = projects_store.get_project(slug)
+    except ProjectError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    for s in p.config.get("sources") or []:
+        if isinstance(s, dict) and s.get("name") == source_name:
+            stype = s.get("type") or ""
+            defaults = default_clean_rules(stype)
+            override = s.get("clean_rules") or {}
+            effective = {
+                "title_ops": override.get("title_ops", defaults.title_ops),
+                "text_ops": override.get("text_ops", defaults.text_ops),
+                "filter_min_chars": override.get(
+                    "filter_min_chars", defaults.filter_min_chars
+                ),
+                "filter_min_lines": override.get(
+                    "filter_min_lines", defaults.filter_min_lines
+                ),
+                "filter_min_arabic_ratio": override.get(
+                    "filter_min_arabic_ratio", defaults.filter_min_arabic_ratio
+                ),
+                "drop_if_url_dominated": override.get(
+                    "drop_if_url_dominated", defaults.drop_if_url_dominated
+                ),
+            }
+            return {
+                "source": source_name,
+                "source_type": stype,
+                "rules": effective,
+                "is_overridden": bool(override),
+            }
+    raise HTTPException(status_code=404, detail=f"source {source_name!r} not found in project")
+
+
+@router.put("/{slug}/sources/{source_name}/cleanup")
+def put_cleanup_rules(slug: str, source_name: str, body: CleanRulesIn):
+    try:
+        p = projects_store.get_project(slug)
+    except ProjectError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    cfg = p.config
+    found = False
+    for s in cfg.get("sources") or []:
+        if isinstance(s, dict) and s.get("name") == source_name:
+            override = s.get("clean_rules") or {}
+            updates = body.model_dump(exclude_none=True)
+            override.update(updates)
+            s["clean_rules"] = override
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail=f"source {source_name!r} not found in project")
+    projects_store.update_project(slug, cfg)
+    return {"ok": True, "source": source_name, "applied": body.model_dump(exclude_none=True)}
+
+
+@router.delete("/{slug}/sources/{source_name}/cleanup", status_code=204)
+def reset_cleanup_rules(slug: str, source_name: str):
+    """Reset overrides → fall back to type-defaults."""
+    try:
+        p = projects_store.get_project(slug)
+    except ProjectError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    cfg = p.config
+    found = False
+    for s in cfg.get("sources") or []:
+        if isinstance(s, dict) and s.get("name") == source_name:
+            s.pop("clean_rules", None)
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail=f"source {source_name!r} not found in project")
+    projects_store.update_project(slug, cfg)

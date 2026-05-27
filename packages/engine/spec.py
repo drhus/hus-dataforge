@@ -25,6 +25,92 @@ class CategorizeRule:
     set_category: str
 
 
+# Per-source cleanup rules — applied during normalization.
+# Each op is a {"op": <name>, ...args} dict for easy YAML/JSON serialization.
+# Title ops, in order of application:
+#   - {"op": "split_last", "separator": "»", "if_starts_with": "الديوان"}
+#       Take the last segment after splitting on separator. The `if_starts_with`
+#       guard skips titles that don't begin with the given prefix (so cleaner
+#       titles pass through untouched).
+#   - {"op": "regex_replace", "pattern": "...", "replacement": "..."}
+#
+# Text ops, in order of application:
+#   - {"op": "truncate_before_first_of", "markers": ["a", "b", ...]}
+#       Drop content from the first line containing any of these markers
+#       onward — useful for stripping page chrome at the bottom.
+#   - {"op": "strip_lines_matching", "pattern": "..."}
+#       Remove every line matching the regex (multi-line, leaves rest intact).
+#   - {"op": "regex_replace", "pattern": "...", "replacement": "..."}
+#
+# Filter (applied after text cleanup; record dropped if any check fails):
+#   - min_chars: int        (default 20)
+#   - min_lines: int        (default 0)
+#   - min_arabic_ratio: float  (default 0.4 — set to 0 for non-Arabic corpora)
+#   - drop_if_url_dominated: bool  (default True)
+
+
+@dataclass
+class CleanRules:
+    title_ops: list[dict] = field(default_factory=list)
+    text_ops: list[dict] = field(default_factory=list)
+    filter_min_chars: int = 20
+    filter_min_lines: int = 0
+    filter_min_arabic_ratio: float = 0.4
+    drop_if_url_dominated: bool = True
+
+
+# Per-spider-type defaults. Used when the source has no explicit clean_rules.
+# Existing aldiwan behavior preserved as the default for list_detail /
+# multi_level_list_detail / paginated sources.
+_ALDIWAN_DEFAULT_TITLE_OPS = [
+    {"op": "split_last", "separator": "»", "if_starts_with": "الديوان"},
+]
+_ALDIWAN_DEFAULT_TEXT_OPS = [
+    {
+        "op": "truncate_before_first_of",
+        "markers": [
+            "المزيد عن",
+            "أضف معلومة",
+            "أضف تعليق",
+            "اقتباسات",
+            "تعليقات",
+        ],
+    },
+]
+
+_DEFAULT_CLEAN_RULES_BY_TYPE: dict[str, CleanRules] = {
+    "list_detail": CleanRules(
+        title_ops=list(_ALDIWAN_DEFAULT_TITLE_OPS),
+        text_ops=list(_ALDIWAN_DEFAULT_TEXT_OPS),
+    ),
+    "multi_level_list_detail": CleanRules(
+        title_ops=list(_ALDIWAN_DEFAULT_TITLE_OPS),
+        text_ops=list(_ALDIWAN_DEFAULT_TEXT_OPS),
+    ),
+    "paginated": CleanRules(
+        title_ops=list(_ALDIWAN_DEFAULT_TITLE_OPS),
+        text_ops=list(_ALDIWAN_DEFAULT_TEXT_OPS),
+    ),
+    "telegram_web": CleanRules(),
+    "telegram_mtproto": CleanRules(),
+    "x_syndication": CleanRules(),
+    "fixture": CleanRules(),
+}
+
+
+def default_clean_rules(source_type: str) -> CleanRules:
+    """Return a fresh copy of the default rules for a source type."""
+    base = _DEFAULT_CLEAN_RULES_BY_TYPE.get(source_type, CleanRules())
+    return CleanRules(
+        title_ops=list(base.title_ops),
+        text_ops=list(base.text_ops),
+        filter_min_chars=base.filter_min_chars,
+        filter_min_lines=base.filter_min_lines,
+        filter_min_arabic_ratio=base.filter_min_arabic_ratio,
+        drop_if_url_dominated=base.drop_if_url_dominated,
+    )
+
+
 @dataclass
 class SourceSpec:
     name: str
@@ -70,6 +156,11 @@ class SourceSpec:
     # OLDER than what the (anonymous) web mirror already has. Web mirror stays
     # primary; MTProto only kicks in for the tail past the mirror's window.
     extend_below_source: str | None = None
+
+    # Per-source cleanup rules (see CleanRules above). Populated with
+    # type-appropriate defaults at spec-parse time; user can override
+    # any/all fields via the project config.
+    clean_rules: CleanRules = field(default_factory=CleanRules)
 
 
 @dataclass
@@ -131,8 +222,31 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
         fields = {k: _field_from_raw(v) for k, v in fields_raw.items()}
 
         src = SourceSpec(
-            name=name, type=stype, record_selector=rec_sel, fields=fields, poet=s.get("poet")
+            name=name,
+            type=stype,
+            record_selector=rec_sel,
+            fields=fields,
+            poet=s.get("poet"),
+            clean_rules=default_clean_rules(stype),
         )
+
+        # Per-source override of cleanup rules. User-supplied keys replace
+        # the per-type defaults entirely (no merging).
+        cr_raw = s.get("clean_rules") or {}
+        if cr_raw and not isinstance(cr_raw, dict):
+            raise SpecError(f"source {name!r}: clean_rules must be an object")
+        if "title_ops" in cr_raw:
+            src.clean_rules.title_ops = list(cr_raw["title_ops"] or [])
+        if "text_ops" in cr_raw:
+            src.clean_rules.text_ops = list(cr_raw["text_ops"] or [])
+        if "filter_min_chars" in cr_raw:
+            src.clean_rules.filter_min_chars = int(cr_raw["filter_min_chars"])
+        if "filter_min_lines" in cr_raw:
+            src.clean_rules.filter_min_lines = int(cr_raw["filter_min_lines"])
+        if "filter_min_arabic_ratio" in cr_raw:
+            src.clean_rules.filter_min_arabic_ratio = float(cr_raw["filter_min_arabic_ratio"])
+        if "drop_if_url_dominated" in cr_raw:
+            src.clean_rules.drop_if_url_dominated = bool(cr_raw["drop_if_url_dominated"])
 
         # categorize block (applies in the cleaning stage)
         cat_raw = s.get("categorize") or []

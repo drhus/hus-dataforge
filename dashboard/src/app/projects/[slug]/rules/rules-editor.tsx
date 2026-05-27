@@ -81,43 +81,31 @@ export function RulesEditor({
   }
 
   if (!loaded)
-    return (
-      <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 text-sm text-zinc-500">
-        Loading {source}…
-      </div>
-    );
+    return <div className="text-xs text-zinc-500">Loading categorize rules…</div>;
 
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-4">
-      <header className="flex items-baseline justify-between gap-3">
-        <div>
-          <div className="font-mono text-sm font-semibold">{source}</div>
-          <div className="text-xs text-zinc-500 mt-0.5">
-            <span className="font-mono">{sourceType}</span>
-            {poet && (
-              <>
-                {" · "}poet: <span className="font-mono">{poet}</span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-xs">
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="font-semibold uppercase tracking-wider text-zinc-500">
+          Categorize rules
+        </span>
+        <div className="flex items-center gap-2">
           {saved === "saved" && <span className="text-emerald-600">✓ saved</span>}
           <button
             onClick={save}
             disabled={saved === "saving"}
-            className="rounded-md bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-3 py-1.5 font-medium disabled:opacity-50"
+            className="rounded-md bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 px-2 py-0.5 disabled:opacity-50"
           >
-            {saved === "saving" ? "Saving…" : "Save rules"}
+            {saved === "saving" ? "Saving…" : "Save"}
           </button>
           <button
             onClick={reclean}
-            className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             Re-run cleaning
           </button>
         </div>
-      </header>
+      </div>
 
       {error && (
         <div className="rounded-md border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/50 p-2 text-xs text-red-700 dark:text-red-300">

@@ -144,7 +144,11 @@ def run_clean(slug: str, *, progress: Progress | None = None) -> dict:
             if poet:
                 stats["by_poet"][poet]["input"] += 1
             canonical = normalize_record(
-                raw, source_name=source_name, source_kind=kind, poet=poet
+                raw,
+                source_name=source_name,
+                source_kind=kind,
+                poet=poet,
+                clean_rules=(source.clean_rules if source else None),
             )
             if canonical is None:
                 stats["filtered_out"] += 1
