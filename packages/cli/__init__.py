@@ -115,18 +115,40 @@ def epub_cmd(
     ),
 ) -> None:
     """Export a subject's clean JSONL to a readable Arabic EPUB book."""
+    _build_subject_format(slug, subject, kind="epub")
+
+
+@app.command(name="bundle")
+def bundle_cmd(
+    slug: str,
+    subject: str | None = typer.Argument(
+        None,
+        help="Subject slug. If omitted, build bundles for all subjects with a clean JSONL.",
+    ),
+) -> None:
+    """Build .zip bundle (epub + md + csv) for a subject (or all subjects)."""
+    _build_subject_format(slug, subject, kind="bundle")
+
+
+def _build_subject_format(slug: str, subject: str | None, *, kind: str) -> None:
     import json
     from pathlib import Path
 
     from packages.api.settings import DATA_DIR
-    from packages.epub import build_epub
+    from packages.epub import build_bundle, build_csv, build_epub, build_markdown
 
+    builders = {
+        "epub": build_epub,
+        "md": build_markdown,
+        "csv": build_csv,
+        "bundle": build_bundle,
+    }
+    build = builders[kind]
     if subject:
-        out = build_epub(slug, subject)
+        out = build(slug, subject)
         typer.echo(json.dumps({"out": str(out), "size": out.stat().st_size}, indent=2))
         return
 
-    # All subjects with a clean JSONL (skip sidecar buckets)
     clean_dir = Path(DATA_DIR) / slug / "clean"
     if not clean_dir.exists():
         raise typer.BadParameter(f"no clean dir for {slug!r}")
@@ -135,7 +157,7 @@ def epub_cmd(
         if "__" in jsonl.stem or jsonl.stem.startswith("_"):
             continue
         try:
-            out = build_epub(slug, jsonl.stem)
+            out = build(slug, jsonl.stem)
             results.append({"subject": jsonl.stem, "out": str(out), "size": out.stat().st_size})
         except Exception as e:
             results.append({"subject": jsonl.stem, "error": str(e)})

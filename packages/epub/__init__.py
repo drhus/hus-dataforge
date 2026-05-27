@@ -1,20 +1,27 @@
-"""EPUB exporter — turn a poet's clean JSONL into a readable Arabic e-book.
+"""Per-subject book exporters — EPUB + Markdown + CSV, optionally zipped.
 
-Output: data/<slug>/export/<subject>.epub
+Each builder reads data/<slug>/clean/<subject>.jsonl and the matching
+projects/<slug>/{subjects,poets}/<subject>.yaml manifest, then emits a
+self-contained file under data/<slug>/export/:
 
-Reads the manifest at projects/<slug>/{poets,subjects}/<subject>.yaml for
-author name, country, year etc. Builds one EPUB with:
-  - Cover/title page (subject name + count + generated date)
-  - One chapter per poem (title h2 + verses preserving line breaks)
-  - Sorted: titled poems first (alphabetically) then untitled (by date if any)
-  - Full RTL CSS + Amiri-like Arabic font hint
-  - Metadata: language=ar, creator=name_en/name_ar, identifier=urn:dataforge:<slug>:<subject>
+  - build_epub     → <subject>.epub  (RTL Arabic e-book, ebooklib)
+  - build_markdown → <subject>.md    (GitHub-flavored, two-space line
+                                       breaks for verses)
+  - build_csv      → <subject>.csv   (flat tabular dump for spreadsheets,
+                                       UTF-8, all-field-quoted, RFC-4180)
+  - build_bundle   → <subject>.zip   (all three together + README.txt)
+
+All builders share sort order (titled first alphabetically, then untitled
+by date) and the same metadata chips.
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import logging
 import re
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -255,4 +262,245 @@ def build_epub(
     return out_path
 
 
-__all__ = ["build_epub"]
+def build_markdown(
+    project_slug: str,
+    subject_slug: str,
+    *,
+    out_path: Path | None = None,
+) -> Path:
+    """Build a single .md file for a subject. Verses use two-trailing-space
+    line breaks so any markdown renderer keeps the poem layout intact.
+
+    Output: data/<slug>/export/<subject>.md
+    """
+    manifest = _load_manifest(project_slug, subject_slug)
+    records = _read_clean(project_slug, subject_slug)
+    if not records:
+        raise RuntimeError(
+            f"no records found in clean/{subject_slug}.jsonl — nothing to export"
+        )
+
+    display_name, secondary = _author_display(manifest, subject_slug)
+    country = (manifest.get("country") or "").strip()
+    born = manifest.get("born") or ""
+    died = manifest.get("died") or ""
+    born_died = ""
+    if born and died:
+        born_died = f"{born}–{died}"
+    elif born:
+        born_died = f"b. {born}"
+
+    today = datetime.now(tz=timezone.utc).date().isoformat()
+    lines: list[str] = []
+    lines.append(f"# {display_name}")
+    if secondary and secondary != display_name:
+        lines.append(f"*{secondary}*")
+    facts = " · ".join(p for p in [country, born_died] if p)
+    if facts:
+        lines.append(facts)
+    lines.append("")
+    lines.append(
+        f"> {len(records)} نص شعري · جُمعت بواسطة hus-dataforge · {today}"
+    )
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    sorted_records = _sort_records(records)
+    # Table of contents — only for titled poems (untitled would just be a sea
+    # of "قصيدة #N" links and add noise).
+    titled = [
+        (i, r) for i, r in enumerate(sorted_records, start=1) if (r.get("title") or "").strip()
+    ]
+    if titled:
+        lines.append("## فهرس")
+        lines.append("")
+        for i, r in titled:
+            anchor = _md_anchor(r.get("title") or "", i)
+            lines.append(f"- [{r.get('title')}](#{anchor})")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    for i, r in enumerate(sorted_records, start=1):
+        ch_title = (r.get("title") or "").strip() or f"قصيدة #{i}"
+        text = (r.get("text") or "").strip()
+        meta = r.get("meta") or {}
+        meta_bits: list[str] = []
+        if meta.get("date"):
+            meta_bits.append(str(meta["date"]))
+        if meta.get("topics"):
+            top = str(meta["topics"]).split("|")[0].strip()
+            if top:
+                meta_bits.append(top)
+        if r.get("category") and r.get("category") != "poetry":
+            meta_bits.append(str(r["category"]))
+
+        lines.append(f"## {ch_title}")
+        if meta_bits:
+            lines.append(f"*{' · '.join(meta_bits)}*")
+        lines.append("")
+        # Each verse becomes its own line; two trailing spaces = <br> in
+        # GitHub-flavored markdown so the poem keeps its shape.
+        for ln in text.splitlines():
+            if ln.strip():
+                lines.append(ln + "  ")
+            else:
+                lines.append("")
+        # Source URL footnote
+        if r.get("source_url"):
+            lines.append("")
+            lines.append(f"<sup>المصدر: <{r['source_url']}></sup>")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    out_dir = DATA_DIR / project_slug / "export"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_path or (out_dir / f"{subject_slug}.md")
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+    log.info("md: wrote %d records to %s", len(records), out_path)
+    return out_path
+
+
+def _md_anchor(title: str, idx: int) -> str:
+    """GitHub-style header anchor: lowercased, hyphenated, non-word stripped.
+    Falls back to a stable index-based anchor if the title is empty."""
+    if not title:
+        return f"poem-{idx}"
+    a = title.strip().lower()
+    a = re.sub(r"[^\w؀-ۿݐ-ݿ-]+", "-", a, flags=re.UNICODE)
+    a = a.strip("-")
+    return a or f"poem-{idx}"
+
+
+_CSV_COLUMNS = [
+    "id",
+    "title",
+    "text",
+    "date",
+    "topics",
+    "meter",
+    "rhyme",
+    "category",
+    "source",
+    "source_url",
+    "sources",
+    "source_urls",
+    "word_count",
+    "line_count",
+    "lang",
+    "scraped_at",
+    "run_id",
+]
+
+
+def build_csv(
+    project_slug: str,
+    subject_slug: str,
+    *,
+    out_path: Path | None = None,
+) -> Path:
+    """Build a flat CSV dump of a subject's clean records. UTF-8, RFC-4180
+    quoting, one row per poem. `sources` / `source_urls` arrays are
+    pipe-joined for spreadsheet friendliness; `meta.date / topics / meter /
+    rhyme` are lifted out as top-level columns.
+
+    Output: data/<slug>/export/<subject>.csv
+    """
+    records = _read_clean(project_slug, subject_slug)
+    if not records:
+        raise RuntimeError(
+            f"no records found in clean/{subject_slug}.jsonl — nothing to export"
+        )
+
+    out_dir = DATA_DIR / project_slug / "export"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_path or (out_dir / f"{subject_slug}.csv")
+
+    with out_path.open("w", encoding="utf-8", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=_CSV_COLUMNS,
+            extrasaction="ignore",
+            quoting=csv.QUOTE_ALL,
+        )
+        writer.writeheader()
+        for r in _sort_records(records):
+            meta = r.get("meta") or {}
+            row = {
+                "id": r.get("id"),
+                "title": r.get("title") or "",
+                "text": r.get("text") or "",
+                "date": meta.get("date") or meta.get("published_at") or "",
+                "topics": meta.get("topics") or "",
+                "meter": meta.get("meter") or "",
+                "rhyme": meta.get("rhyme") or "",
+                "category": r.get("category") or "",
+                "source": r.get("source") or "",
+                "source_url": r.get("source_url") or "",
+                "sources": "|".join(r.get("sources") or []) if r.get("sources") else "",
+                "source_urls": "|".join(r.get("source_urls") or []) if r.get("source_urls") else "",
+                "word_count": r.get("word_count") or "",
+                "line_count": r.get("line_count") or "",
+                "lang": r.get("lang") or "",
+                "scraped_at": r.get("scraped_at") or "",
+                "run_id": r.get("run_id") or r.get("_run_id") or "",
+            }
+            writer.writerow(row)
+    log.info("csv: wrote %d rows to %s", len(records), out_path)
+    return out_path
+
+
+def build_bundle(
+    project_slug: str,
+    subject_slug: str,
+    *,
+    out_path: Path | None = None,
+) -> Path:
+    """Build .epub + .md + .csv and zip them into <subject>.zip.
+
+    Output: data/<slug>/export/<subject>.zip
+    """
+    epub_path = build_epub(project_slug, subject_slug)
+    md_path = build_markdown(project_slug, subject_slug)
+    csv_path = build_csv(project_slug, subject_slug)
+
+    out_dir = DATA_DIR / project_slug / "export"
+    out_path = out_path or (out_dir / f"{subject_slug}.zip")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(epub_path, arcname=epub_path.name)
+        zf.write(md_path, arcname=md_path.name)
+        zf.write(csv_path, arcname=csv_path.name)
+        # Tiny README so the recipient knows what they got
+        zf.writestr(
+            "README.txt",
+            (
+                f"{subject_slug} — hus-dataforge bundle\n"
+                f"{'-' * 60}\n"
+                f"{epub_path.name}\n"
+                f"  Arabic EPUB, RTL, lang=ar. Open in Apple Books, Kindle\n"
+                f"  (Send-to-Kindle), KOReader, Google Play Books, calibre.\n\n"
+                f"{md_path.name}\n"
+                f"  GitHub-flavored markdown with two-trailing-space line\n"
+                f"  breaks so verses keep their shape. Renders correctly on\n"
+                f"  GitHub, Obsidian, pandoc, mdBook.\n\n"
+                f"{csv_path.name}\n"
+                f"  Flat tabular dump (UTF-8, RFC-4180 quoted) — one row\n"
+                f"  per poem. Open in Excel / Numbers / Google Sheets /\n"
+                f"  Pandas. Pipe-joined sources/source_urls; meta.date,\n"
+                f"  topics, meter, rhyme lifted into top-level columns.\n\n"
+                f"Generated by hus-dataforge on "
+                f"{datetime.now(tz=timezone.utc).date().isoformat()}.\n"
+            ),
+        )
+    out_path.write_bytes(buf.getvalue())
+    log.info(
+        "bundle: wrote %s (%d bytes)", out_path, out_path.stat().st_size
+    )
+    return out_path
+
+
+__all__ = ["build_epub", "build_markdown", "build_csv", "build_bundle"]

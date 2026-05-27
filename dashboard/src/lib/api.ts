@@ -291,4 +291,9 @@ export const api = {
       `/data/${project}/subjects/${subject}/epub`,
       { method: "POST" },
     ),
+  buildSubjectBundle: (project: string, subject: string) =>
+    req<{ project: string; subject: string; out: string; url: string; size: number }>(
+      `/data/${project}/subjects/${subject}/bundle`,
+      { method: "POST" },
+    ),
 };

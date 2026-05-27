@@ -256,3 +256,110 @@ def test_epub_endpoint_builds_and_downloads(env: Path):
     assert d.status_code == 200
     assert d.headers["content-type"].startswith("application/epub+zip")
     assert int(d.headers.get("content-length", "0")) == body["size"]
+
+
+def test_markdown_build_round_trip(env: Path):
+    from packages.api import projects_store
+    from packages.epub import build_markdown
+
+    projects_store.create_project("md1", {"sources": []})
+    _write_clean(
+        "md1",
+        "p",
+        [
+            {"id": "h1", "poet": "p", "title": "قصيدة الأولى", "text": "بيت\nثاني"},
+            {"id": "h2", "poet": "p", "title": None, "text": "بيت بدون عنوان",
+             "meta": {"date": "2026-05-01", "topics": "love|sad"}, "source_url": "https://example/p2"},
+        ],
+        env / "data",
+    )
+    out = build_markdown("md1", "p")
+    md = out.read_text(encoding="utf-8")
+    # Verses keep their layout via two-trailing-space line breaks
+    assert "بيت  " in md and "ثاني  " in md
+    # Date + first topic chip
+    assert "2026-05-01" in md
+    assert "love" in md  # first topic only (split on |)
+    # Source url footnote
+    assert "https://example/p2" in md
+    # TOC includes titled poem
+    assert "## فهرس" in md
+    assert "قصيدة الأولى" in md
+
+
+def test_csv_build_lifts_meta_to_columns(env: Path):
+    """CSV has the right header, RFC-4180 quotes, and pipe-joined source lists."""
+    import csv as csv_mod
+    from packages.api import projects_store
+    from packages.epub import build_csv
+
+    projects_store.create_project("c1", {"sources": []})
+    _write_clean(
+        "c1",
+        "p",
+        [
+            {"id": "1", "poet": "p", "title": "A", "text": "x", "source": "src1",
+             "source_url": "u1", "sources": ["src1", "src2"], "source_urls": ["u1", "u2"],
+             "meta": {"date": "2026-01-15", "topics": "love", "meter": "بحر البسيط"}},
+        ],
+        env / "data",
+    )
+    out = build_csv("c1", "p")
+    with out.open(encoding="utf-8") as fh:
+        reader = csv_mod.DictReader(fh)
+        rows = list(reader)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["date"] == "2026-01-15"
+    assert r["topics"] == "love"
+    assert r["meter"] == "بحر البسيط"
+    assert r["sources"] == "src1|src2"
+    assert r["source_urls"] == "u1|u2"
+
+
+def test_bundle_build_contains_three_formats(env: Path):
+    """bundle.zip has epub + md + csv + README.txt."""
+    import zipfile
+    from packages.api import projects_store
+    from packages.epub import build_bundle
+
+    projects_store.create_project("b1", {"sources": []})
+    _write_clean(
+        "b1",
+        "p",
+        [{"id": "1", "poet": "p", "title": "ت", "text": "بيت"}],
+        env / "data",
+    )
+    out = build_bundle("b1", "p")
+    assert out.suffix == ".zip"
+    with zipfile.ZipFile(out) as z:
+        names = set(z.namelist())
+    assert "p.epub" in names
+    assert "p.md" in names
+    assert "p.csv" in names
+    assert "README.txt" in names
+
+
+def test_bundle_endpoint_builds_and_downloads(env: Path):
+    """API: POST .../bundle then GET the download URL."""
+    import sys
+    for mod in list(sys.modules):
+        if mod.startswith("packages."):
+            del sys.modules[mod]
+    from fastapi.testclient import TestClient
+    from packages.api.app import create_app
+
+    client = TestClient(create_app())
+    client.post("/projects", json={"slug": "bnd", "config": {"sources": []}})
+    _write_clean(
+        "bnd", "p",
+        [{"id": "x", "poet": "p", "title": "ت", "text": "بيت"}],
+        env / "data",
+    )
+    r = client.post("/data/bnd/subjects/p/bundle")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["out"].endswith(".zip")
+    d = client.get(body["url"])
+    assert d.status_code == 200
+    assert d.headers["content-type"].startswith("application/zip")

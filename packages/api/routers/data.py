@@ -342,10 +342,7 @@ def list_poets(project: str):
 @router.post("/{project}/subjects/{subject}/epub")
 def build_subject_epub(project: str, subject: str):
     """Build a readable Arabic EPUB book for a single subject.
-    Synchronous — typically <1s for a few thousand poems.
-
-    Returns the export path + size; the dashboard then links the user to
-    the static-file download endpoint."""
+    Synchronous — typically <1s for a few thousand poems."""
     _safe_segment(project)
     _safe_segment(subject)
     from packages.epub import build_epub
@@ -356,6 +353,30 @@ def build_subject_epub(project: str, subject: str):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"epub build failed: {e}")
+    return {
+        "project": project,
+        "subject": subject,
+        "out": out.name,
+        "url": f"/data/{project}/export/{out.name}/download",
+        "size": out.stat().st_size,
+    }
+
+
+@router.post("/{project}/subjects/{subject}/bundle")
+def build_subject_bundle(project: str, subject: str):
+    """Build a zip containing .epub + .md + .csv + README.txt for the subject.
+    Synchronous; replaces the older single-format /epub endpoint as the
+    dashboard's primary export action."""
+    _safe_segment(project)
+    _safe_segment(subject)
+    from packages.epub import build_bundle
+
+    try:
+        out = build_bundle(project, subject)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"bundle build failed: {e}")
     return {
         "project": project,
         "subject": subject,
@@ -384,6 +405,8 @@ def download_export_file(project: str, filename: str):
         ".epub": "application/epub+zip",
         ".parquet": "application/octet-stream",
         ".md": "text/markdown; charset=utf-8",
+        ".csv": "text/csv; charset=utf-8",
+        ".zip": "application/zip",
         ".json": "application/json",
         ".jsonl": "application/x-ndjson",
     }.get(suffix, "application/octet-stream")
