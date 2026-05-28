@@ -1,85 +1,48 @@
 template: poetry
-
-# Levantine zajal & colloquial-Arabic poetry corpus.
-#
-# Scope: Lebanon, Syria, Palestine (and selectively Jordan when poets
-# fit the broader Levant zajal tradition). Dialect, not Fusha — that
-# is the defining axis vs the existing `arabic-poetry` project.
-#
-# Genres covered: معنّى, قرّادي, موعنّى, شروقي, عتابا, ميجنا,
-# أبوذية (Iraqi cousin, included only when used by Levantine poets).
-#
-# Sources are added incrementally — see milestones-future.md /
-# levant-zajal section in the vault for the ranked plan.
-
 poets:
-  # Lebanese — heart of the zajal tradition (UNESCO ICH 2014)
-  - slug: said-akl
-    manifest: poets/said-akl.yaml
-  - slug: talal-haidar
-    manifest: poets/talal-haidar.yaml
-  - slug: moussa-zgheib
-    manifest: poets/moussa-zgheib.yaml
-  - slug: zaghloul-aldamour
-    manifest: poets/zaghloul-aldamour.yaml
-  - slug: khalil-roukoz
-    manifest: poets/khalil-roukoz.yaml
-  - slug: zein-shoeib
-    manifest: poets/zein-shoeib.yaml
-  - slug: asaad-saeed
-    manifest: poets/asaad-saeed.yaml
-  - slug: joseph-elhachem
-    manifest: poets/joseph-elhachem.yaml
-
-  # Palestinian
-  - slug: tamim-albarghouti
-    manifest: poets/tamim-albarghouti.yaml
-  - slug: mureed-albarghouti
-    manifest: poets/mureed-albarghouti.yaml
-
-  # Syrian — discovered via folk.aldiwan.net 2026-05-28
-  - slug: omar-elfra
-    manifest: poets/omar-elfra.yaml
-  - slug: husam-tahsin-bik
-    manifest: poets/husam-tahsin-bik.yaml
-  - slug: juliet-bader
-    manifest: poets/juliet-bader.yaml
-  - slug: abu-selina
-    manifest: poets/abu-selina.yaml
-  - slug: abdulaziz-alrawaba
-    manifest: poets/abdulaziz-alrawaba.yaml
-  - slug: asaad-alrawaba
-    manifest: poets/asaad-alrawaba.yaml
-  - slug: fouad-haydar
-    manifest: poets/fouad-haydar.yaml
-
-# Primary source: folk.aldiwan.net — the colloquial sibling of
-# aldiwan.net (12,897 poems, 435 poets, 18 countries). Same site
-# structure as main aldiwan but URL pattern differs:
-#   - poet page: /cat-poet-<Slug>
-#   - poem page: /poems/<numeric_id>  (vs aldiwan's poem<id>.html)
-# Verse selector tightened to `div.bet-1 h3` to avoid grabbing
-# page-chrome h3's. Title uses og:title meta (cleaner than h2 which
-# contains a breadcrumb). No meter (sea-) data — colloquial poetry
-# doesn't carry classical meter labels there.
-
-# YouTube channel manifests (for the M-zajal-asr pipeline) live in
-# `channels/*.yaml`. They are wired as `youtube_channel` sources below.
-# Audio download + transcription requires:
-#   - yt-dlp + faster-whisper (already in pyproject)
-#   - $YOUTUBE_COOKIES_FILE set to a Netscape cookies.txt exported
-#     from a signed-in browser session (Hetzner IPs are bot-blocked)
-# Smoke is staged at `youtube-lebanese-zajal-smoke` below with max_records=1.
-
+- slug: said-akl
+  manifest: poets/said-akl.yaml
+- slug: talal-haidar
+  manifest: poets/talal-haidar.yaml
+- slug: moussa-zgheib
+  manifest: poets/moussa-zgheib.yaml
+- slug: zaghloul-aldamour
+  manifest: poets/zaghloul-aldamour.yaml
+- slug: khalil-roukoz
+  manifest: poets/khalil-roukoz.yaml
+- slug: zein-shoeib
+  manifest: poets/zein-shoeib.yaml
+- slug: asaad-saeed
+  manifest: poets/asaad-saeed.yaml
+- slug: joseph-elhachem
+  manifest: poets/joseph-elhachem.yaml
+- slug: tamim-albarghouti
+  manifest: poets/tamim-albarghouti.yaml
+- slug: mureed-albarghouti
+  manifest: poets/mureed-albarghouti.yaml
+- slug: omar-elfra
+  manifest: poets/omar-elfra.yaml
+- slug: husam-tahsin-bik
+  manifest: poets/husam-tahsin-bik.yaml
+- slug: juliet-bader
+  manifest: poets/juliet-bader.yaml
+- slug: abu-selina
+  manifest: poets/abu-selina.yaml
+- slug: abdulaziz-alrawaba
+  manifest: poets/abdulaziz-alrawaba.yaml
+- slug: asaad-alrawaba
+  manifest: poets/asaad-alrawaba.yaml
+- slug: fouad-haydar
+  manifest: poets/fouad-haydar.yaml
 sources:
-- name: folk-aldiwan-omar-elfra
+- name: folk-aldiwan-talal-haidar
   type: list_detail
-  subject: omar-elfra
-  list_url: https://folk.aldiwan.net/cat-poet-Omar-elfra
+  subject: talal-haidar
+  list_url: https://folk.aldiwan.net/cat-poet-Talal-Haider
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 5
+  max_records: 30
   record_selector: body
   fields:
     title:
@@ -89,17 +52,14 @@ sources:
       selector: div.bet-1 h3
       attr: text
       multi: true
-      join_with: "\n"
+      join_with: '
+
+        '
     topics:
       selector: a[href*="poem-topics/"]
       attr: text
       multi: true
-      join_with: "|"
-    topic_slugs:
-      selector: a[href*="poem-topics/"]
-      attr: href
-      multi: true
-      join_with: "|"
+      join_with: '|'
     country:
       selector: a[href*="cat-poets-"]
       attr: text
@@ -107,36 +67,1084 @@ sources:
       selector: a[href*="cat-poet-"]
       attr: text
       multi: true
-      join_with: "|"
+      join_with: '|'
+- name: folk-aldiwan-josiph-harb
+  type: list_detail
+  subject: josiph-harb
+  list_url: https://folk.aldiwan.net/cat-poet-josiph-harb
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
 
-# --- YouTube + Whisper ASR sources (M-zajal-asr) ---
-# These do NOT scrape text — they enumerate videos, download mp3, and
-# the separate `transcribe` stage feeds them through faster-whisper.
-# Run order: scrape (download audio) → transcribe → clean → export.
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-mohammed-mustafa
+  type: list_detail
+  subject: mohammed-mustafa
+  list_url: https://folk.aldiwan.net/cat-poet-mohammed-mustafa
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
 
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-talih-hamdan
+  type: list_detail
+  subject: talih-hamdan
+  list_url: https://folk.aldiwan.net/cat-poet-Talih-Hamdan
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-fouad-qardahi
+  type: list_detail
+  subject: fouad-qardahi
+  list_url: https://folk.aldiwan.net/cat-poet-Fouad-qardahi
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-joseph-elhachem
+  type: list_detail
+  subject: joseph-elhachem
+  list_url: https://folk.aldiwan.net/cat-poet-Joseph-Al-Hashim
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-rida-kaoury
+  type: list_detail
+  subject: rida-kaoury
+  list_url: https://folk.aldiwan.net/cat-poet-rida-kaoury
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-zaki-nassif
+  type: list_detail
+  subject: zaki-nassif
+  list_url: https://folk.aldiwan.net/cat-poet-Zaki-Nassif
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-romanos-henini
+  type: list_detail
+  subject: romanos-henini
+  list_url: https://folk.aldiwan.net/cat-poet-Romanos-henini
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-maroun-karam
+  type: list_detail
+  subject: maroun-karam
+  list_url: https://folk.aldiwan.net/cat-poet-Maroun-Karam
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-rashid-nakhla
+  type: list_detail
+  subject: rashid-nakhla
+  list_url: https://folk.aldiwan.net/cat-poet-Rashid-Nakhla
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-asaad-saeed
+  type: list_detail
+  subject: asaad-saeed
+  list_url: https://folk.aldiwan.net/cat-poet-assad-saeed
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-moussa-zgheib
+  type: list_detail
+  subject: moussa-zgheib
+  list_url: https://folk.aldiwan.net/cat-poet-Moussa-Zgheib
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-assad-saba
+  type: list_detail
+  subject: assad-saba
+  list_url: https://folk.aldiwan.net/cat-poet-assad-saba
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-iliyya-abu-shadid
+  type: list_detail
+  subject: iliyya-abu-shadid
+  list_url: https://folk.aldiwan.net/cat-poet-Iliyya-Abu-Shadid
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-khalil-roukoz
+  type: list_detail
+  subject: khalil-roukoz
+  list_url: https://folk.aldiwan.net/cat-poet-Khalil-rokz
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-charbel-baini
+  type: list_detail
+  subject: charbel-baini
+  list_url: https://folk.aldiwan.net/cat-poet-Charbel-Baini
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-remah-juban
+  type: list_detail
+  subject: remah-juban
+  list_url: https://folk.aldiwan.net/cat-poet-remah-juban
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-rahbani-brothers
+  type: list_detail
+  subject: rahbani-brothers
+  list_url: https://folk.aldiwan.net/cat-poet-Rahbani-brothers
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-zein-shoeib
+  type: list_detail
+  subject: zein-shoeib
+  list_url: https://folk.aldiwan.net/cat-poet-Zain-Shoaib
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-said-akl
+  type: list_detail
+  subject: said-akl
+  list_url: https://folk.aldiwan.net/cat-poet-Said-Akl
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-gris-al-bustani
+  type: list_detail
+  subject: gris-al-bustani
+  list_url: https://folk.aldiwan.net/cat-poet-Gris-al-Bustani
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-juliet-bader
+  type: list_detail
+  subject: juliet-bader
+  list_url: https://folk.aldiwan.net/cat-poet-Juliet-Bader
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-omar-elfra
+  type: list_detail
+  subject: omar-elfra
+  list_url: https://folk.aldiwan.net/cat-poet-Omar-elfra
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-abdulaziz-alrawaba
+  type: list_detail
+  subject: abdulaziz-alrawaba
+  list_url: https://folk.aldiwan.net/cat-poet-Abdulaziz-Al-rawaba
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-abu-selina
+  type: list_detail
+  subject: abu-selina
+  list_url: https://folk.aldiwan.net/cat-poet-abu-selina
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-husam-tahsin-bik
+  type: list_detail
+  subject: husam-tahsin-bik
+  list_url: https://folk.aldiwan.net/cat-poet-husam-tahsin-bik
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-asaad-alrawaba
+  type: list_detail
+  subject: asaad-alrawaba
+  list_url: https://folk.aldiwan.net/cat-poet-Asaad-Alrawaba
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-walaa-awad
+  type: list_detail
+  subject: walaa-awad
+  list_url: https://folk.aldiwan.net/cat-poet-Walaa-Awad
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-alsabrat
+  type: list_detail
+  subject: alsabrat
+  list_url: https://folk.aldiwan.net/cat-poet-ALSABRAT
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-nimr-bin-adwan
+  type: list_detail
+  subject: nimr-bin-adwan
+  list_url: https://folk.aldiwan.net/cat-poet-Nimr-bin-Adwan
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-najah-almasaeed
+  type: list_detail
+  subject: najah-almasaeed
+  list_url: https://folk.aldiwan.net/cat-poet-Najah-Almasaeed
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
+- name: folk-aldiwan-jaza-almasarwa
+  type: list_detail
+  subject: jaza-almasarwa
+  list_url: https://folk.aldiwan.net/cat-poet-jaza-Almasarwa
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 30
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
 - name: youtube-lebanese-zajal-smoke
   type: youtube_channel
   channel_url: https://www.youtube.com/@lebanesezajal5550
   rate_limit_sec: 5.0
-  max_records: 1            # one video — proof of pipe, not a real pull
-  min_duration_sec: 60      # skip shorts < 1 min
-  max_duration_sec: 600     # cap at 10 min for the smoke
+  max_records: 1
+  min_duration_sec: 60
+  max_duration_sec: 600
   write_subs: true
   download_audio: true
   audio_format: mp3
-  audio_quality: "0"
-
+  audio_quality: '0'
 - name: youtube-zaghloul-aldamour
   type: youtube_channel
   subject: zaghloul-aldamour
   channel_url: https://www.youtube.com/playlist?list=PLbUxROKdWL81DRIrmkYFW61N3AGPoUrmf
   rate_limit_sec: 5.0
-  max_records: 5            # initial cap; lift after smoke succeeds
+  max_records: 5
   min_duration_sec: 60
-  max_duration_sec: 2400    # 40 min — full performances allowed
+  max_duration_sec: 2400
   write_subs: true
   download_audio: true
-
 - name: youtube-roukoz-zgheib
   type: youtube_channel
   channel_url: https://www.youtube.com/playlist?list=PLGW5GGutxiKIqNkd1EfzB5UaI8YB7-WyN
