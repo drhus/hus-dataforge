@@ -1,0 +1,16 @@
+name_ar: جوزيف الهاشم
+name_en: Joseph al-Hashem
+aliases:
+  - جوزيف الهاشم
+  - زغلول الدامور          # stage name
+country: Lebanon
+born: 1925
+died: 2014
+genre: zajal
+dialect: lebanese
+notes: |
+  See [[zaghloul-aldamour]] — same person, stage name "زغلول
+  الدامور". This manifest may be merged into that one once we
+  decide the canonical form for performer-vs-birth name.
+sources:
+  wikipedia_ar: جوزيف_الهاشم

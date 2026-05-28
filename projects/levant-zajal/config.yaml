@@ -1,0 +1,50 @@
+template: poetry
+
+# Levantine zajal & colloquial-Arabic poetry corpus.
+#
+# Scope: Lebanon, Syria, Palestine (and selectively Jordan when poets
+# fit the broader Levant zajal tradition). Dialect, not Fusha — that
+# is the defining axis vs the existing `arabic-poetry` project.
+#
+# Genres covered: معنّى, قرّادي, موعنّى, شروقي, عتابا, ميجنا,
+# أبوذية (Iraqi cousin, included only when used by Levantine poets).
+#
+# Sources are added incrementally — see milestones-future.md /
+# levant-zajal section in the vault for the ranked plan.
+
+poets:
+  # Lebanese — heart of the zajal tradition (UNESCO ICH 2014)
+  - slug: said-akl
+    manifest: poets/said-akl.yaml
+  - slug: talal-haidar
+    manifest: poets/talal-haidar.yaml
+  - slug: moussa-zgheib
+    manifest: poets/moussa-zgheib.yaml
+  - slug: zaghloul-aldamour
+    manifest: poets/zaghloul-aldamour.yaml
+  - slug: khalil-roukoz
+    manifest: poets/khalil-roukoz.yaml
+  - slug: zein-shoeib
+    manifest: poets/zein-shoeib.yaml
+  - slug: asaad-saeed
+    manifest: poets/asaad-saeed.yaml
+  - slug: joseph-elhachem
+    manifest: poets/joseph-elhachem.yaml
+
+  # Palestinian
+  - slug: tamim-albarghouti
+    manifest: poets/tamim-albarghouti.yaml
+  - slug: mureed-albarghouti
+    manifest: poets/mureed-albarghouti.yaml
+
+# Sources are intentionally empty for now. The first three to add
+# (after the parallel research agent reports back with verified
+# URLs) are:
+#   1. Hindawi  — أطوار الزجل اللبناني (clean academic HTML)
+#   2. Lebanonism WordPress — curated anthology posts
+#   3. Wikipedia Ar  — per-poet bios with inline poem samples
+# All three are text-only. Audio/video (YouTube + Whisper Arabic ASR)
+# is deferred to a future milestone — that is where the *real*
+# greenfield opportunity lives, since most zajal lives in TV
+# recordings nobody has transcribed.
+sources: []
