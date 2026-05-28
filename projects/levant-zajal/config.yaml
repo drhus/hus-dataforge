@@ -37,14 +37,66 @@ poets:
   - slug: mureed-albarghouti
     manifest: poets/mureed-albarghouti.yaml
 
-# Sources are intentionally empty for now. The first three to add
-# (after the parallel research agent reports back with verified
-# URLs) are:
-#   1. Hindawi  — أطوار الزجل اللبناني (clean academic HTML)
-#   2. Lebanonism WordPress — curated anthology posts
-#   3. Wikipedia Ar  — per-poet bios with inline poem samples
-# All three are text-only. Audio/video (YouTube + Whisper Arabic ASR)
-# is deferred to a future milestone — that is where the *real*
-# greenfield opportunity lives, since most zajal lives in TV
-# recordings nobody has transcribed.
-sources: []
+  # Syrian — discovered via folk.aldiwan.net 2026-05-28
+  - slug: omar-elfra
+    manifest: poets/omar-elfra.yaml
+  - slug: husam-tahsin-bik
+    manifest: poets/husam-tahsin-bik.yaml
+  - slug: juliet-bader
+    manifest: poets/juliet-bader.yaml
+  - slug: abu-selina
+    manifest: poets/abu-selina.yaml
+  - slug: abdulaziz-alrawaba
+    manifest: poets/abdulaziz-alrawaba.yaml
+  - slug: asaad-alrawaba
+    manifest: poets/asaad-alrawaba.yaml
+  - slug: fouad-haydar
+    manifest: poets/fouad-haydar.yaml
+
+# Primary source: folk.aldiwan.net — the colloquial sibling of
+# aldiwan.net (12,897 poems, 435 poets, 18 countries). Same site
+# structure as main aldiwan but URL pattern differs:
+#   - poet page: /cat-poet-<Slug>
+#   - poem page: /poems/<numeric_id>  (vs aldiwan's poem<id>.html)
+# Verse selector tightened to `div.bet-1 h3` to avoid grabbing
+# page-chrome h3's. Title uses og:title meta (cleaner than h2 which
+# contains a breadcrumb). No meter (sea-) data — colloquial poetry
+# doesn't carry classical meter labels there.
+
+sources:
+- name: folk-aldiwan-omar-elfra
+  type: list_detail
+  subject: omar-elfra
+  list_url: https://folk.aldiwan.net/cat-poet-Omar-elfra
+  list_link_selector: a[href*="/poems/"]
+  base_url: https://folk.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 5
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: "\n"
+    topics:
+      selector: a[href*="poem-topics/"]
+      attr: text
+      multi: true
+      join_with: "|"
+    topic_slugs:
+      selector: a[href*="poem-topics/"]
+      attr: href
+      multi: true
+      join_with: "|"
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: "|"
