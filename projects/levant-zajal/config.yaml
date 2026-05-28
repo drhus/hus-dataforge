@@ -827,6 +827,49 @@ sources:
       attr: text
       multi: true
       join_with: '|'
+- name: aldiwan-omar-elfra
+  type: list_detail
+  subject: omar-elfra
+  list_url: https://www.aldiwan.net/cat-poet-omar-al-farra
+  list_link_selector: a[href^="poem"]
+  base_url: https://www.aldiwan.net/
+  rate_limit_sec: 3.5
+  max_records: 25
+  record_selector: body
+  fields:
+    title:
+      selector: meta[property="og:title"]
+      attr: content
+    verses:
+      selector: div.bet-1 h3
+      attr: text
+      multi: true
+      join_with: '
+
+        '
+    meter:
+      selector: a[href*="sea-"]
+      attr: text
+      multi: true
+      join_with: '|'
+    rhyme:
+      selector: a[href*="/q-"]
+      attr: text
+      multi: true
+      join_with: '|'
+    topics:
+      selector: a[href*="Poems-Topics-"]
+      attr: text
+      multi: true
+      join_with: '|'
+    country:
+      selector: a[href*="cat-poets-"]
+      attr: text
+    related_poets:
+      selector: a[href*="cat-poet-"]
+      attr: text
+      multi: true
+      join_with: '|'
 - name: folk-aldiwan-abdulaziz-alrawaba
   type: list_detail
   subject: abdulaziz-alrawaba
