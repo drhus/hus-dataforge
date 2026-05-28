@@ -1,0 +1,10 @@
+name_ar: جوقة زغلول الدامور (قائمة تشغيل)
+name_en: Jawqa Zaghloul al-Damour Playlist
+channel_url: https://www.youtube.com/playlist?list=PLbUxROKdWL80Frk7g9Tkkvo2oYQmVJTqT
+country: Lebanon
+content_type: jawqa_performances
+notes: |
+  جوقة زغلول الدامور — multi-poet zajal troupe recordings.
+  REQUIRES speaker diarization (Phase C) for clean per-poet
+  attribution. Until then, ASR records will be labelled
+  speaker_0/1/2... with no poet attribution.

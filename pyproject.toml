@@ -32,6 +32,8 @@ dependencies = [
     "pyarrow>=15.0",
     "croniter>=2.0",
     "ebooklib>=0.20",
+    "yt-dlp>=2026.3.17",
+    "faster-whisper>=1.2.1",
 ]
 
 [dependency-groups]

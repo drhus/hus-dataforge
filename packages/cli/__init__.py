@@ -106,6 +106,35 @@ def export(slug: str) -> None:
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+@app.command(name="transcribe")
+def transcribe(
+    slug: str,
+    source: str | None = typer.Option(
+        None, "--source", "-s", help="Transcribe only this youtube_channel source"
+    ),
+    model: str | None = typer.Option(
+        None, "--model", "-m", help="Whisper model name (tiny/base/small/medium/large-v3/large-v3-turbo). Defaults to env DATAFORGE_WHISPER_MODEL or 'medium'."
+    ),
+    max_videos: int | None = typer.Option(
+        None, "--max", help="Cap on videos to transcribe this run (smoke testing)."
+    ),
+) -> None:
+    """Run faster-whisper over downloaded youtube_channel audio."""
+    import json
+
+    from packages.pipeline.transcribe import transcribe_project
+
+    kwargs: dict = {}
+    if model:
+        kwargs["model"] = model
+    if max_videos is not None:
+        kwargs["max_videos"] = max_videos
+    if source:
+        kwargs["source_filter"] = [source]
+    result = transcribe_project(slug, **kwargs)
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+
+
 @app.command(name="epub")
 def epub_cmd(
     slug: str,

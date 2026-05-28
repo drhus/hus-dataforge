@@ -63,6 +63,14 @@ poets:
 # contains a breadcrumb). No meter (sea-) data — colloquial poetry
 # doesn't carry classical meter labels there.
 
+# YouTube channel manifests (for the M-zajal-asr pipeline) live in
+# `channels/*.yaml`. They are wired as `youtube_channel` sources below.
+# Audio download + transcription requires:
+#   - yt-dlp + faster-whisper (already in pyproject)
+#   - $YOUTUBE_COOKIES_FILE set to a Netscape cookies.txt exported
+#     from a signed-in browser session (Hetzner IPs are bot-blocked)
+# Smoke is staged at `youtube-lebanese-zajal-smoke` below with max_records=1.
+
 sources:
 - name: folk-aldiwan-omar-elfra
   type: list_detail
@@ -100,3 +108,41 @@ sources:
       attr: text
       multi: true
       join_with: "|"
+
+# --- YouTube + Whisper ASR sources (M-zajal-asr) ---
+# These do NOT scrape text — they enumerate videos, download mp3, and
+# the separate `transcribe` stage feeds them through faster-whisper.
+# Run order: scrape (download audio) → transcribe → clean → export.
+
+- name: youtube-lebanese-zajal-smoke
+  type: youtube_channel
+  channel_url: https://www.youtube.com/@lebanesezajal5550
+  rate_limit_sec: 5.0
+  max_records: 1            # one video — proof of pipe, not a real pull
+  min_duration_sec: 60      # skip shorts < 1 min
+  max_duration_sec: 600     # cap at 10 min for the smoke
+  write_subs: true
+  download_audio: true
+  audio_format: mp3
+  audio_quality: "0"
+
+- name: youtube-zaghloul-aldamour
+  type: youtube_channel
+  subject: zaghloul-aldamour
+  channel_url: https://www.youtube.com/playlist?list=PLbUxROKdWL81DRIrmkYFW61N3AGPoUrmf
+  rate_limit_sec: 5.0
+  max_records: 5            # initial cap; lift after smoke succeeds
+  min_duration_sec: 60
+  max_duration_sec: 2400    # 40 min — full performances allowed
+  write_subs: true
+  download_audio: true
+
+- name: youtube-roukoz-zgheib
+  type: youtube_channel
+  channel_url: https://www.youtube.com/playlist?list=PLGW5GGutxiKIqNkd1EfzB5UaI8YB7-WyN
+  rate_limit_sec: 5.0
+  max_records: 5
+  min_duration_sec: 60
+  max_duration_sec: 2400
+  write_subs: true
+  download_audio: true

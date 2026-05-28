@@ -124,6 +124,10 @@ _DEFAULT_CLEAN_RULES_BY_TYPE: dict[str, CleanRules] = {
     "telegram_mtproto": CleanRules(text_ops=list(_TELEGRAM_DEFAULT_TEXT_OPS)),
     "x_syndication": CleanRules(),
     "fixture": CleanRules(),
+    # Transcribed audio is mostly clean already — no per-line markers
+    # to strip. Tighten later if Whisper hallucinations turn out to
+    # share signatures across recordings.
+    "youtube_channel": CleanRules(filter_min_arabic_ratio=0.3),
 }
 
 
@@ -151,6 +155,7 @@ class SourceSpec:
         "telegram_web",
         "telegram_mtproto",
         "x_syndication",
+        "youtube_channel",
     ]
     record_selector: str
     fields: dict[str, FieldSpec]
@@ -175,6 +180,18 @@ class SourceSpec:
     link_attr: str = "href"
     base_url: str | None = None  # for resolving relative links
     max_records: int | None = None
+
+    # youtube_channel — see packages/engine/spiders/youtube_channel.py
+    # channel_url is the public URL of a channel (https://www.youtube.com/@handle)
+    # or a playlist URL. Spider enumerates videos, downloads audio + tries
+    # auto-subs. Cookies are read from $YOUTUBE_COOKIES_FILE if set.
+    channel_url: str | None = None
+    min_duration_sec: int | None = None  # skip videos shorter than this
+    max_duration_sec: int | None = None  # skip videos longer than this
+    write_subs: bool = True              # save auto-captions when available
+    download_audio: bool = True          # download audio-only mp3 (for transcribe)
+    audio_format: str = "mp3"
+    audio_quality: str = "0"             # 0=best, 9=worst (yt-dlp scale)
 
     # categorization (cleaning-stage)
     # primary_category records flow into clean/<poet>.jsonl
@@ -240,12 +257,18 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             "telegram_web",
             "telegram_mtproto",
             "x_syndication",
+            "youtube_channel",
         ):
             raise SpecError(
                 f"source {name!r}: unknown spider type {stype!r}"
             )
-        # social spiders have a fixed output schema — record_selector/fields not required
-        social_types = ("telegram_web", "telegram_mtproto", "x_syndication")
+        # social + media spiders have a fixed output schema — record_selector/fields not required
+        social_types = (
+            "telegram_web",
+            "telegram_mtproto",
+            "x_syndication",
+            "youtube_channel",
+        )
         rec_sel = s.get("record_selector") or ("" if stype in social_types else None)
         if rec_sel is None:
             raise SpecError(f"source {name!r}: record_selector is required")
@@ -315,6 +338,26 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             src.primary_category = s["primary_category"]
         if "fallback_category" in s:
             src.fallback_category = s["fallback_category"]
+
+        # youtube_channel-specific fields
+        if stype == "youtube_channel":
+            src.channel_url = s.get("channel_url") or s.get("list_url")
+            if not src.channel_url:
+                raise SpecError(
+                    f"source {name!r}: youtube_channel needs channel_url"
+                )
+            src.min_duration_sec = s.get("min_duration_sec")
+            src.max_duration_sec = s.get("max_duration_sec")
+            if "write_subs" in s:
+                src.write_subs = bool(s["write_subs"])
+            if "download_audio" in s:
+                src.download_audio = bool(s["download_audio"])
+            if "audio_format" in s:
+                src.audio_format = str(s["audio_format"])
+            if "audio_quality" in s:
+                src.audio_quality = str(s["audio_quality"])
+            if "max_records" in s:
+                src.max_records = s["max_records"]
 
         if stype == "paginated":
             src.url_template = s.get("url_template")
