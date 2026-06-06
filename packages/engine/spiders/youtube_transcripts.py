@@ -292,21 +292,27 @@ class YouTubeTranscriptsSpider:
                 )
 
                 title = (transcript.get("video_info") or {}).get("name") or v.get("title")
-                writer.write(
-                    {
-                        "channel": source.name,
-                        "video_id": vid,
-                        "title": title,
-                        "text": transcript["text"],
-                        "duration_sec": v.get("duration"),
-                        "uploader": (transcript.get("video_info") or {}).get("author"),
-                        "video_url": url,
-                        "transcript_source": f"{provider_name}_auto",
-                        "track": transcript.get("track_key"),
-                        "segment_count": len(transcript.get("segments") or []),
-                        "_source_url": url,
-                    }
-                )
+                record = {
+                    "channel": source.name,
+                    "video_id": vid,
+                    "title": title,
+                    "text": transcript["text"],
+                    "duration_sec": v.get("duration"),
+                    "uploader": (transcript.get("video_info") or {}).get("author"),
+                    "video_url": url,
+                    "transcript_source": f"{provider_name}_auto",
+                    "track": transcript.get("track_key"),
+                    "segment_count": len(transcript.get("segments") or []),
+                    "_source_url": url,
+                }
+                # Preserve the user's intent on every record so later attribution
+                # can run queries like "all records where search_query contains
+                # 'حمصي' → bucket=syria/homs". The search_query field is set
+                # by the dashboard's bulk-add-selected flow even when the spider
+                # is running in video_ids mode (no enumeration needed).
+                if source.search_query:
+                    record["search_query"] = source.search_query
+                writer.write(record)
                 written += 1
                 progress.page(url, 1)
         return written

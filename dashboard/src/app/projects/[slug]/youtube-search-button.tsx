@@ -120,6 +120,10 @@ export function YouTubeSearchButton({ project }: { project: string }) {
         name: sourceName,
         type: "youtube_transcripts",
         video_ids: Array.from(selected),
+        // search_query is metadata-only when video_ids is set; the spider
+        // stamps it on every record so later attribution queries can find
+        // "all records I added via 'حمصي' search".
+        search_query: query.trim() || undefined,
         rate_limit_sec: 4.0,
       });
       setAdding("added");
