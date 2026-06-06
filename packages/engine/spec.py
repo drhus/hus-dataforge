@@ -130,10 +130,22 @@ _DEFAULT_CLEAN_RULES_BY_TYPE: dict[str, CleanRules] = {
     "youtube_channel": CleanRules(filter_min_arabic_ratio=0.3),
     # Auto-captions can be noisy — long enough threshold to drop empty/garbled
     # records, but lower Arabic ratio because Whisper/notegpt sometimes
-    # inject Latin punctuation or English bridge words.
+    # inject Latin punctuation or English bridge words. Also strip the
+    # standard ASR sound-marker tokens that show up in YouTube captions.
     "youtube_transcripts": CleanRules(
         filter_min_chars=80,
         filter_min_arabic_ratio=0.3,
+        text_ops=[
+            # ASR sound markers: [تصفيق] applause, [موسيقى] music,
+            # [ضحك] laughter, [Music] / (Music) in English channels, etc.
+            {
+                "op": "regex_replace",
+                "pattern": r"[\[\(](?:تصفيق|موسيقى|ضحك|تهليل|تكبير|Music|Applause|Laughter|Audience)[\]\)]",
+                "replacement": "",
+            },
+            # Repeated whitespace from token removal
+            {"op": "regex_replace", "pattern": r" {2,}", "replacement": " "},
+        ],
     ),
 }
 
