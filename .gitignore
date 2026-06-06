@@ -44,3 +44,6 @@ dump.rdb
 
 # Superpowers
 .superpowers/
+
+# Node SDK caller deps — pnpm-install on first use
+tools/claude-sdk/node_modules/

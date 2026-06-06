@@ -106,6 +106,73 @@ def export(slug: str) -> None:
     typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
+@app.command(name="rag-index")
+def rag_index(
+    slug: str,
+    force: bool = typer.Option(False, "--force", help="Drop and rebuild the existing index"),
+    model: str | None = typer.Option(None, "--model", "-m", help="Override embedding model name"),
+) -> None:
+    """Build/refresh the RAG index over the project's exported Parquet corpus."""
+    import json
+
+    from packages.rag.index import build_index
+
+    res = build_index(slug, force=force, model=model)
+    typer.echo(json.dumps(res, ensure_ascii=False, indent=2))
+
+
+@app.command(name="rag-search")
+def rag_search(
+    slug: str,
+    query: str = typer.Argument(..., help="Search query (Arabic or English)"),
+    top_k: int = typer.Option(8, "--top", "-k", help="How many records to retrieve"),
+    where: str | None = typer.Option(
+        None, "--where", "-w", help="LanceDB filter, e.g. \"bucket = 'khalil-roukoz'\""
+    ),
+) -> None:
+    """Top-k similarity search over the project's RAG index."""
+    import json
+
+    from packages.rag.retrieve import search
+
+    hits = search(query, slug, top_k=top_k, where=where)
+    out = [
+        {
+            "bucket": h.get("bucket"),
+            "title": h.get("title"),
+            "score": h.get("_score"),
+            "text": (h.get("text") or "")[:240],
+        }
+        for h in hits
+    ]
+    typer.echo(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+@app.command(name="rag-gen")
+def rag_gen(
+    slug: str,
+    prompt: str = typer.Argument(..., help="What to generate (Arabic prompt)"),
+    top_k: int = typer.Option(8, "--top", "-k"),
+    where: str | None = typer.Option(None, "--where", "-w"),
+    no_retrieve: bool = typer.Option(False, "--no-retrieve", help="Zero-shot — skip the corpus, call Claude directly"),
+    model: str | None = typer.Option(None, "--model", "-m", help="Claude model id"),
+) -> None:
+    """Generate zajal text guided by retrieved corpus samples (RAG + Claude SDK)."""
+    import json
+
+    from packages.rag.generate import generate_zajal
+
+    res = generate_zajal(
+        prompt,
+        slug,
+        top_k=top_k,
+        where=where,
+        retrieve=not no_retrieve,
+        model=model,
+    )
+    typer.echo(json.dumps(res, ensure_ascii=False, indent=2))
+
+
 @app.command(name="transcribe")
 def transcribe(
     slug: str,

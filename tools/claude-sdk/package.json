@@ -1,0 +1,9 @@
+{
+  "name": "dataforge-claude-sdk-caller",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "*"
+  }
+}

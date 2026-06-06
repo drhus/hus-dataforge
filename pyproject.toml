@@ -35,6 +35,8 @@ dependencies = [
     "yt-dlp>=2026.3.17",
     "faster-whisper>=1.2.1",
     "youtube-transcript-api>=1.2.4",
+    "fastembed>=0.8.0",
+    "lancedb>=0.33.0",
 ]
 
 [dependency-groups]
