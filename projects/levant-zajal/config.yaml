@@ -1039,7 +1039,7 @@ sources:
   type: youtube_transcripts
   channel_url: https://www.youtube.com/@lebanesezajal5550
   rate_limit_sec: 4.0
-  max_records: 50
+  max_records: 100
   min_duration_sec: 60
   max_duration_sec: 7200
 - name: youtube-lebanese-zajal-smoke
@@ -1106,7 +1106,7 @@ sources:
   type: youtube_transcripts
   channel_url: https://www.youtube.com/playlist?list=PLavtn3ZqrC8I7AWrXYXE8f_lV-YmBWqEL
   rate_limit_sec: 4.0
-  max_records: 40
+  max_records: 150
   min_duration_sec: 300
   max_duration_sec: 14400
 - name: yt-transcripts-jawqa-aljabal
@@ -1128,13 +1128,13 @@ sources:
   type: youtube_transcripts
   channel_url: https://www.youtube.com/channel/UC8rrnuk4TsQ3CqmTx7wiqmQ
   rate_limit_sec: 4.0
-  max_records: 30
+  max_records: 100
   min_duration_sec: 120
   max_duration_sec: 14400
 - name: yt-transcripts-jordan-tv-archive
   type: youtube_transcripts
   channel_url: https://www.youtube.com/@JordanTv.Archive
   rate_limit_sec: 4.0
-  max_records: 30
+  max_records: 100
   min_duration_sec: 300
   max_duration_sec: 14400
