@@ -1094,3 +1094,47 @@ sources:
   max_records: 30
   min_duration_sec: 60
   max_duration_sec: 14400
+  subject: khalil-roukoz
+- name: yt-transcripts-zajal-net
+  type: youtube_transcripts
+  channel_url: https://www.youtube.com/@zajal
+  rate_limit_sec: 4.0
+  max_records: 40
+  min_duration_sec: 300
+  max_duration_sec: 14400
+- name: yt-transcripts-otv-tahaddi-zajal
+  type: youtube_transcripts
+  channel_url: https://www.youtube.com/playlist?list=PLavtn3ZqrC8I7AWrXYXE8f_lV-YmBWqEL
+  rate_limit_sec: 4.0
+  max_records: 40
+  min_duration_sec: 300
+  max_duration_sec: 14400
+- name: yt-transcripts-jawqa-aljabal
+  type: youtube_transcripts
+  subject: khalil-roukoz
+  channel_url: https://www.youtube.com/playlist?list=PLbUxROKdWL82k6H8Hv4lgfgg0dPaOW6_x
+  rate_limit_sec: 4.0
+  max_records: 30
+  min_duration_sec: 300
+  max_duration_sec: 14400
+- name: yt-transcripts-hafalat-lebanese-zajal
+  type: youtube_transcripts
+  channel_url: https://www.youtube.com/playlist?list=PLbUxROKdWL83bByRiv6J6O1wdTwg2d90-
+  rate_limit_sec: 4.0
+  max_records: 30
+  min_duration_sec: 300
+  max_duration_sec: 14400
+- name: yt-transcripts-palestinian-zajal-peak
+  type: youtube_transcripts
+  channel_url: https://www.youtube.com/channel/UC8rrnuk4TsQ3CqmTx7wiqmQ
+  rate_limit_sec: 4.0
+  max_records: 30
+  min_duration_sec: 120
+  max_duration_sec: 14400
+- name: yt-transcripts-jordan-tv-archive
+  type: youtube_transcripts
+  channel_url: https://www.youtube.com/@JordanTv.Archive
+  rate_limit_sec: 4.0
+  max_records: 30
+  min_duration_sec: 300
+  max_duration_sec: 14400
