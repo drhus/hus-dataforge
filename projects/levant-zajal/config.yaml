@@ -1138,3 +1138,15 @@ sources:
   max_records: 100
   min_duration_sec: 300
   max_duration_sec: 14400
+- name: yt-search-موسى-زغيب-z9po
+  type: youtube_transcripts
+  search_query: موسى زغيب
+  rate_limit_sec: 4
+  max_records: 25
+  min_duration_sec: 60
+  max_duration_sec: 14400
+- name: yt-pick-smoke-test
+  type: youtube_transcripts
+  video_ids:
+  - Ta7_r9cKNW4
+  rate_limit_sec: 1.0

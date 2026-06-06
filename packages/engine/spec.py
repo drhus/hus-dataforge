@@ -207,6 +207,7 @@ class SourceSpec:
     # auto-subs. Cookies are read from $YOUTUBE_COOKIES_FILE if set.
     channel_url: str | None = None
     search_query: str | None = None      # alternative to channel_url for youtube_transcripts
+    video_ids: list[str] = field(default_factory=list)  # fixed list of YouTube video IDs (overrides channel/search if set)
     min_duration_sec: int | None = None  # skip videos shorter than this
     max_duration_sec: int | None = None  # skip videos longer than this
     write_subs: bool = True              # save auto-captions when available
@@ -366,13 +367,20 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
         if stype in ("youtube_channel", "youtube_transcripts"):
             src.channel_url = s.get("channel_url") or s.get("list_url")
             src.search_query = s.get("search_query")
+            vids_raw = s.get("video_ids") or []
+            if vids_raw and not isinstance(vids_raw, list):
+                raise SpecError(f"source {name!r}: video_ids must be a list")
+            src.video_ids = [str(v).strip() for v in vids_raw if str(v).strip()]
             # youtube_channel still requires a URL (audio download via yt-dlp);
-            # youtube_transcripts accepts either channel_url OR search_query
+            # youtube_transcripts accepts channel_url, search_query, OR a
+            # fixed video_ids list.
             if stype == "youtube_channel" and not src.channel_url:
                 raise SpecError(f"source {name!r}: youtube_channel needs channel_url")
-            if stype == "youtube_transcripts" and not (src.channel_url or src.search_query):
+            if stype == "youtube_transcripts" and not (
+                src.channel_url or src.search_query or src.video_ids
+            ):
                 raise SpecError(
-                    f"source {name!r}: youtube_transcripts needs channel_url or search_query"
+                    f"source {name!r}: youtube_transcripts needs channel_url, search_query, or video_ids"
                 )
             src.min_duration_sec = s.get("min_duration_sec")
             src.max_duration_sec = s.get("max_duration_sec")

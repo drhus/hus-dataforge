@@ -185,17 +185,24 @@ class YouTubeTranscriptsSpider:
         run_id: int | None = None,
         force: bool = False,
     ) -> int:
-        if not source.channel_url and not source.search_query:
+        if not (source.channel_url or source.search_query or source.video_ids):
             raise AssertionError(
-                "youtube_transcripts source needs channel_url or search_query"
+                "youtube_transcripts source needs channel_url, search_query, or video_ids"
             )
 
         source_dir = _transcripts_dir(slug, source.name)
         seen = set() if force else _load_seen_video_ids(source_dir)
+        mode = (
+            "fixed-list"
+            if source.video_ids
+            else "search"
+            if source.search_query
+            else "channel"
+        )
         log.info(
             "youtube_transcripts: %s — mode=%s, already_indexed=%d",
             source.name,
-            "search" if source.search_query else "channel",
+            mode,
             len(seen),
         )
 
@@ -204,20 +211,24 @@ class YouTubeTranscriptsSpider:
         provider_name = "notegpt"
         provider = _TRANSCRIPT_PROVIDERS[provider_name]
 
-        # 1) Enumerate via yt-dlp flat mode (no auth needed).
-        # In search mode the max_results cap goes INTO the ytsearchN prefix so
-        # we don't waste an enumeration. The spider-level max_records still
-        # applies for incremental + length-filtered pending list below.
-        search_n = source.max_records or 25
-        try:
-            videos = enumerate_videos(
-                channel_url=source.channel_url,
-                search_query=source.search_query,
-                max_results=search_n,
-            )
-        except yt_dlp.utils.DownloadError as e:
-            raise RuntimeError(f"enumeration failed: {str(e)[:200]}") from e
-        log.info("youtube_transcripts: enumerated %d videos", len(videos))
+        # 1) Build the candidate video list.
+        if source.video_ids:
+            # Fixed list — skip enumeration. We don't have titles/durations
+            # for these unless we hit each one individually; we let the
+            # provider fetch them. We synthesize minimal entries so the
+            # downstream pipeline gets `id` and nothing else.
+            videos = [{"id": vid} for vid in source.video_ids]
+        else:
+            search_n = source.max_records or 25
+            try:
+                videos = enumerate_videos(
+                    channel_url=source.channel_url,
+                    search_query=source.search_query,
+                    max_results=search_n,
+                )
+            except yt_dlp.utils.DownloadError as e:
+                raise RuntimeError(f"enumeration failed: {str(e)[:200]}") from e
+        log.info("youtube_transcripts: candidates=%d", len(videos))
 
         # 2) Filter by length + already-fetched.
         pending: list[dict] = []
