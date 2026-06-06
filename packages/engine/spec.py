@@ -128,6 +128,13 @@ _DEFAULT_CLEAN_RULES_BY_TYPE: dict[str, CleanRules] = {
     # to strip. Tighten later if Whisper hallucinations turn out to
     # share signatures across recordings.
     "youtube_channel": CleanRules(filter_min_arabic_ratio=0.3),
+    # Auto-captions can be noisy — long enough threshold to drop empty/garbled
+    # records, but lower Arabic ratio because Whisper/notegpt sometimes
+    # inject Latin punctuation or English bridge words.
+    "youtube_transcripts": CleanRules(
+        filter_min_chars=80,
+        filter_min_arabic_ratio=0.3,
+    ),
 }
 
 
@@ -156,6 +163,7 @@ class SourceSpec:
         "telegram_mtproto",
         "x_syndication",
         "youtube_channel",
+        "youtube_transcripts",
     ]
     record_selector: str
     fields: dict[str, FieldSpec]
@@ -258,6 +266,7 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             "telegram_mtproto",
             "x_syndication",
             "youtube_channel",
+            "youtube_transcripts",
         ):
             raise SpecError(
                 f"source {name!r}: unknown spider type {stype!r}"
@@ -268,6 +277,7 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
             "telegram_mtproto",
             "x_syndication",
             "youtube_channel",
+            "youtube_transcripts",
         )
         rec_sel = s.get("record_selector") or ("" if stype in social_types else None)
         if rec_sel is None:
@@ -339,8 +349,8 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
         if "fallback_category" in s:
             src.fallback_category = s["fallback_category"]
 
-        # youtube_channel-specific fields
-        if stype == "youtube_channel":
+        # youtube_channel + youtube_transcripts share the channel_url shape
+        if stype in ("youtube_channel", "youtube_transcripts"):
             src.channel_url = s.get("channel_url") or s.get("list_url")
             if not src.channel_url:
                 raise SpecError(

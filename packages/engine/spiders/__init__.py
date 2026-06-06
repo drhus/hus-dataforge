@@ -7,6 +7,7 @@ from packages.engine.spiders.telegram_mtproto import TelegramMTProtoSpider
 from packages.engine.spiders.telegram_web import TelegramWebSpider
 from packages.engine.spiders.x_syndication import XSyndicationSpider
 from packages.engine.spiders.youtube_channel import YouTubeChannelSpider
+from packages.engine.spiders.youtube_transcripts import YouTubeTranscriptsSpider
 
 REGISTRY: dict[str, type[Spider]] = {
     "paginated": PaginatedSpider,
@@ -17,6 +18,7 @@ REGISTRY: dict[str, type[Spider]] = {
     "telegram_mtproto": TelegramMTProtoSpider,
     "x_syndication": XSyndicationSpider,
     "youtube_channel": YouTubeChannelSpider,
+    "youtube_transcripts": YouTubeTranscriptsSpider,
 }
 
 __all__ = [
@@ -29,5 +31,6 @@ __all__ = [
     "TelegramMTProtoSpider",
     "XSyndicationSpider",
     "YouTubeChannelSpider",
+    "YouTubeTranscriptsSpider",
     "REGISTRY",
 ]

@@ -42,7 +42,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -71,7 +71,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -100,7 +100,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -129,7 +129,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -158,7 +158,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -187,7 +187,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -216,7 +216,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -245,7 +245,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -274,7 +274,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -303,7 +303,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -332,7 +332,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -361,7 +361,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -390,7 +390,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -419,7 +419,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -448,7 +448,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -477,7 +477,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -506,7 +506,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -535,7 +535,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -564,7 +564,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -593,7 +593,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -622,7 +622,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -651,7 +651,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -680,7 +680,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -709,7 +709,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -781,7 +781,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -810,7 +810,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -839,7 +839,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -868,7 +868,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -897,7 +897,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -926,7 +926,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -955,7 +955,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -984,7 +984,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -1013,7 +1013,7 @@ sources:
   list_link_selector: a[href*="/poems/"]
   base_url: https://folk.aldiwan.net/
   rate_limit_sec: 3.5
-  max_records: 30
+  max_records: 200
   record_selector: body
   fields:
     title:
@@ -1035,6 +1035,13 @@ sources:
       attr: text
       multi: true
       join_with: '|'
+- name: yt-transcripts-lebanese-zajal
+  type: youtube_transcripts
+  channel_url: https://www.youtube.com/@lebanesezajal5550
+  rate_limit_sec: 4.0
+  max_records: 50
+  min_duration_sec: 60
+  max_duration_sec: 7200
 - name: youtube-lebanese-zajal-smoke
   type: youtube_channel
   channel_url: https://www.youtube.com/@lebanesezajal5550
@@ -1065,3 +1072,25 @@ sources:
   max_duration_sec: 2400
   write_subs: true
   download_audio: true
+- name: yt-transcripts-zaghloul-aldamour
+  type: youtube_transcripts
+  subject: zaghloul-aldamour
+  channel_url: https://www.youtube.com/playlist?list=PLbUxROKdWL81DRIrmkYFW61N3AGPoUrmf
+  rate_limit_sec: 4.0
+  max_records: 30
+  min_duration_sec: 60
+  max_duration_sec: 14400
+- name: yt-transcripts-jawqa-aldamour
+  type: youtube_transcripts
+  channel_url: https://www.youtube.com/playlist?list=PLbUxROKdWL80Frk7g9Tkkvo2oYQmVJTqT
+  rate_limit_sec: 4.0
+  max_records: 30
+  min_duration_sec: 60
+  max_duration_sec: 14400
+- name: yt-transcripts-roukoz-zgheib-playlist
+  type: youtube_transcripts
+  channel_url: https://www.youtube.com/playlist?list=PLGW5GGutxiKIqNkd1EfzB5UaI8YB7-WyN
+  rate_limit_sec: 4.0
+  max_records: 30
+  min_duration_sec: 60
+  max_duration_sec: 14400

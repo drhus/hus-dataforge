@@ -26,6 +26,7 @@ export function ExpandSearchButton({ project, subject, nameAr, nameEn, aliases }
   const [error, setError] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [adding, setAdding] = useState<Record<string, "idle" | "adding" | "added" | "error">>({});
+  const [addErrors, setAddErrors] = useState<Record<string, string>>({});
 
   const searchName = nameAr || nameEn || subject;
   const searchAliases = [
@@ -54,19 +55,30 @@ export function ExpandSearchButton({ project, subject, nameAr, nameEn, aliases }
       if (!c.source_template) return;
       const key = c.url;
       setAdding((a) => ({ ...a, [key]: "adding" }));
-      try {
-        const sourceName = `${c.site}-${subject}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+      setAddErrors((e) => ({ ...e, [key]: "" }));
+      const baseName = `${c.site}-${subject}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+      // Auto-dedupe: if the base name is taken, append -2, -3 … up to 5.
+      let lastErr = "";
+      for (let i = 0; i < 5; i++) {
+        const sourceName = i === 0 ? baseName : `${baseName}-${i + 1}`;
         const source = {
           ...c.source_template,
           name: sourceName,
           subject,
         };
-        await api.addSource(project, source);
-        setAdding((a) => ({ ...a, [key]: "added" }));
-      } catch (e) {
-        setAdding((a) => ({ ...a, [key]: "error" }));
-        console.error("add source failed", e);
+        try {
+          await api.addSource(project, source);
+          setAdding((a) => ({ ...a, [key]: "added" }));
+          return;
+        } catch (e) {
+          lastErr = e instanceof Error ? e.message : String(e);
+          // Only retry-with-suffix on 409 conflict
+          if (!/409|already exists/i.test(lastErr)) break;
+        }
       }
+      setAdding((a) => ({ ...a, [key]: "error" }));
+      setAddErrors((e) => ({ ...e, [key]: lastErr || "unknown error" }));
+      console.error("add source failed", lastErr);
     },
     [project, subject],
   );
@@ -178,21 +190,22 @@ export function ExpandSearchButton({ project, subject, nameAr, nameEn, aliases }
                           <button
                             type="button"
                             onClick={() => addCandidate(c)}
-                            disabled={state !== "idle"}
+                            disabled={state !== "idle" && state !== "error"}
                             className={`text-xs px-2.5 py-1 rounded font-medium whitespace-nowrap ${
                               state === "added"
                                 ? "bg-emerald-600 text-white"
                                 : state === "error"
-                                  ? "bg-red-600 text-white"
+                                  ? "bg-red-600 text-white hover:bg-red-700"
                                   : state === "adding"
                                     ? "bg-zinc-400 text-white"
                                     : "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
                             }`}
+                            title={addErrors[key] || undefined}
                           >
                             {state === "added"
                               ? "✓ Added"
                               : state === "error"
-                                ? "Failed"
+                                ? "Retry"
                                 : state === "adding"
                                   ? "Adding…"
                                   : "+ Add source"}
@@ -203,6 +216,11 @@ export function ExpandSearchButton({ project, subject, nameAr, nameEn, aliases }
                           </span>
                         )}
                       </div>
+                      {addErrors[key] && (
+                        <div className="text-xs text-red-700 dark:text-red-300 mt-1 break-words">
+                          {addErrors[key]}
+                        </div>
+                      )}
                     </li>
                   );
                 })}
