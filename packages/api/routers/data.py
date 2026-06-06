@@ -330,13 +330,99 @@ def _list_parquet_records(
     }
 
 
+def _subject_sources(project: str, subject: str) -> dict[str, list[dict]]:
+    """For a subject slug, return per-stage list of (source_name, count, path)
+    contributing to it.
+
+    Heuristics:
+      - raw: any source.jsonl whose name contains `-{subject}` or ends with
+        `_{subject}` (covers `folk-aldiwan-omar-elfra`, `aldiwan-omar-elfra`,
+        `youtube-zaghloul-aldamour` when subject=zaghloul-aldamour, etc.)
+      - clean / export: <subject>.jsonl / <subject>.parquet plus sidecar
+        splits like <subject>__commentary.jsonl
+    """
+    out: dict[str, list[dict]] = {"raw": [], "clean": [], "export": []}
+    # raw — source-named JSONLs
+    raw_dir = DATA_DIR / project / "raw"
+    if raw_dir.exists():
+        for p in raw_dir.glob("*.jsonl"):
+            if p.name.startswith("_"):
+                continue
+            stem = p.stem
+            if stem.endswith(f"-{subject}") or stem.endswith(f"_{subject}") or stem == subject:
+                out["raw"].append({"source": stem, "count": _count_records(p), "stage": "raw"})
+    # clean — subject-named JSONLs (+ sidecar splits)
+    clean_dir = DATA_DIR / project / "clean"
+    if clean_dir.exists():
+        for p in clean_dir.glob(f"{subject}*.jsonl"):
+            if p.name.startswith("_") or not (p.stem == subject or p.stem.startswith(f"{subject}__")):
+                continue
+            out["clean"].append({"source": p.stem, "count": _count_records(p), "stage": "clean"})
+    # export — subject-named Parquet
+    exp_dir = DATA_DIR / project / "export"
+    if exp_dir.exists():
+        for p in exp_dir.glob(f"{subject}*.parquet"):
+            if p.stem == subject or p.stem.startswith(f"{subject}__"):
+                out["export"].append({"source": p.stem, "count": _count_records(p), "stage": "export"})
+    return out
+
+
+@router.get("/{project}/subjects/{subject}/stats")
+def subject_stats(project: str, subject: str):
+    """Per-subject record counts across all stages + the contributing
+    sources. Used by the project page's poet cards."""
+    _safe_segment(project)
+    _safe_segment(subject)
+    sources = _subject_sources(project, subject)
+    totals = {stage: sum(s["count"] for s in entries) for stage, entries in sources.items()}
+    # Primary source = the raw source with the highest count (for the
+    # "View records" link target on the poet card)
+    primary = None
+    if sources["raw"]:
+        primary = max(sources["raw"], key=lambda s: s["count"])["source"]
+    return {
+        "project": project,
+        "subject": subject,
+        "totals": totals,
+        "sources": sources,
+        "primary_raw_source": primary,
+    }
+
+
 @router.get("/{project}/poets")
 def list_poets(project: str):
     """Legacy alias — returns ALL subjects (not just type=poet) so wizard-written
     manifests with type=person|topic|site still show. Kept as `/poets` for
-    backward compat with the dashboard project page."""
+    backward compat with the dashboard project page.
+
+    Stats opt-in via `?with_stats=1`: appends `_stats` per subject
+    (totals + primary_raw_source) so the project page can render badges and
+    links without N+1 calls."""
     subs = _load_subject_manifests(project)
     return {"project": project, "poets": subs}
+
+
+@router.get("/{project}/subjects-with-stats")
+def list_subjects_with_stats(project: str):
+    """Like `/poets` but bundles per-subject stats inline. Single round-trip
+    for the project page; avoids N+1 calls when there are 30+ subjects."""
+    subs = _load_subject_manifests(project)
+    for s in subs:
+        slug = s.get("slug")
+        if not slug:
+            continue
+        try:
+            sources = _subject_sources(project, slug)
+        except Exception:
+            sources = {"raw": [], "clean": [], "export": []}
+        s["_stats"] = {
+            "totals": {stage: sum(x["count"] for x in entries) for stage, entries in sources.items()},
+            "primary_raw_source": (
+                max(sources["raw"], key=lambda x: x["count"])["source"] if sources["raw"] else None
+            ),
+            "raw_source_count": len(sources["raw"]),
+        }
+    return {"project": project, "subjects": subs}
 
 
 @router.post("/{project}/subjects/{subject}/epub")

@@ -51,6 +51,7 @@ export type PoetManifest = {
   died?: number | string;
   sources?: Record<string, unknown>;
   notes?: string;
+  aliases?: string[];
 };
 
 export const api = {
@@ -174,6 +175,29 @@ export const api = {
     req<void>(`/projects/${project}/sources/${source}/cleanup`, { method: "DELETE" }),
   listSubjects: (project: string) =>
     req<{ subjects: (PoetManifest & { type: string })[] }>(`/data/${project}/subjects`),
+  listSubjectsWithStats: (project: string) =>
+    req<{
+      subjects: (PoetManifest & {
+        type: string;
+        _stats?: {
+          totals: { raw: number; clean: number; export: number };
+          primary_raw_source: string | null;
+          raw_source_count: number;
+        };
+      })[];
+    }>(`/data/${project}/subjects-with-stats`),
+  subjectStats: (project: string, subject: string) =>
+    req<{
+      project: string;
+      subject: string;
+      totals: { raw: number; clean: number; export: number };
+      sources: {
+        raw: { source: string; count: number; stage: string }[];
+        clean: { source: string; count: number; stage: string }[];
+        export: { source: string; count: number; stage: string }[];
+      };
+      primary_raw_source: string | null;
+    }>(`/data/${project}/subjects/${subject}/stats`),
   detectSourceType: (url: string) =>
     req<{ type: string; confidence: string; hint: string; [k: string]: unknown }>(
       "/preview/detect",
