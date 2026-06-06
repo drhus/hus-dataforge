@@ -206,6 +206,7 @@ class SourceSpec:
     # or a playlist URL. Spider enumerates videos, downloads audio + tries
     # auto-subs. Cookies are read from $YOUTUBE_COOKIES_FILE if set.
     channel_url: str | None = None
+    search_query: str | None = None      # alternative to channel_url for youtube_transcripts
     min_duration_sec: int | None = None  # skip videos shorter than this
     max_duration_sec: int | None = None  # skip videos longer than this
     write_subs: bool = True              # save auto-captions when available
@@ -364,9 +365,14 @@ def project_spec_from_dict(slug: str, data: dict) -> ProjectSpec:
         # youtube_channel + youtube_transcripts share the channel_url shape
         if stype in ("youtube_channel", "youtube_transcripts"):
             src.channel_url = s.get("channel_url") or s.get("list_url")
-            if not src.channel_url:
+            src.search_query = s.get("search_query")
+            # youtube_channel still requires a URL (audio download via yt-dlp);
+            # youtube_transcripts accepts either channel_url OR search_query
+            if stype == "youtube_channel" and not src.channel_url:
+                raise SpecError(f"source {name!r}: youtube_channel needs channel_url")
+            if stype == "youtube_transcripts" and not (src.channel_url or src.search_query):
                 raise SpecError(
-                    f"source {name!r}: youtube_channel needs channel_url"
+                    f"source {name!r}: youtube_transcripts needs channel_url or search_query"
                 )
             src.min_duration_sec = s.get("min_duration_sec")
             src.max_duration_sec = s.get("max_duration_sec")

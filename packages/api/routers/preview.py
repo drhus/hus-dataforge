@@ -81,3 +81,43 @@ def discover(body: DiscoverIn):
             body.name, aliases=body.aliases, subject_type=body.subject_type
         ),
     }
+
+
+class YouTubeSearchIn(BaseModel):
+    query: str
+    max_results: int = Field(default=25, ge=1, le=100)
+
+
+@router.post("/youtube-search")
+def youtube_search(body: YouTubeSearchIn):
+    """Enumerate top-N YouTube results for a search query.
+
+    Used by the dashboard's "search + bulk add" widget. Returns flat video
+    metadata (id, title, duration, channel, thumbnail) — no transcript fetch
+    yet, that happens at scrape time once the user saves a youtube_transcripts
+    source with this query."""
+    from packages.engine.spiders.youtube_transcripts import enumerate_videos
+
+    try:
+        videos = enumerate_videos(search_query=body.query, max_results=body.max_results)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"youtube enumeration failed: {e!s}")
+    out = []
+    for v in videos:
+        thumb = None
+        thumbs = v.get("thumbnails") or []
+        if thumbs:
+            thumb = thumbs[-1].get("url")
+        out.append(
+            {
+                "video_id": v.get("id"),
+                "title": v.get("title"),
+                "duration": v.get("duration"),
+                "channel": v.get("channel") or v.get("uploader"),
+                "channel_url": v.get("channel_url") or v.get("uploader_url"),
+                "view_count": v.get("view_count"),
+                "thumbnail": thumb,
+                "url": f"https://www.youtube.com/watch?v={v.get('id')}" if v.get("id") else None,
+            }
+        )
+    return {"query": body.query, "count": len(out), "results": out}

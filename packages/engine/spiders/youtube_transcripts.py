@@ -137,6 +137,44 @@ _TRANSCRIPT_PROVIDERS: dict[str, Callable[..., dict | None]] = {
 # ---------- Spider ----------
 
 
+def enumerate_videos(
+    *,
+    channel_url: str | None = None,
+    search_query: str | None = None,
+    max_results: int = 25,
+) -> list[dict]:
+    """Return a flat list of video dicts for either a channel/playlist URL
+    or a YouTube search query.
+
+    Both modes use yt-dlp's `extract_flat='in_playlist'` mode, which is NOT
+    bot-blocked on data-center IPs (unlike per-video extracts). The search
+    mode uses yt-dlp's `ytsearch{N}:term` prefix.
+    """
+    if not channel_url and not search_query:
+        raise ValueError("provide channel_url or search_query")
+    target = channel_url or f"ytsearch{max_results}:{search_query}"
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "extract_flat": "in_playlist",
+        "extractor_args": {"youtube": {"player_client": ["tv_embedded", "mweb"]}},
+    }
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(target, download=False)
+    entries = info.get("entries") or []
+    out: list[dict] = []
+    for e in entries:
+        if not e:
+            continue
+        if e.get("_type") == "playlist":
+            for sub in (e.get("entries") or []):
+                if sub:
+                    out.append(sub)
+        else:
+            out.append(e)
+    return out
+
+
 class YouTubeTranscriptsSpider:
     def run(
         self,
@@ -147,14 +185,17 @@ class YouTubeTranscriptsSpider:
         run_id: int | None = None,
         force: bool = False,
     ) -> int:
-        assert source.channel_url, "youtube_transcripts source needs channel_url"
+        if not source.channel_url and not source.search_query:
+            raise AssertionError(
+                "youtube_transcripts source needs channel_url or search_query"
+            )
 
         source_dir = _transcripts_dir(slug, source.name)
         seen = set() if force else _load_seen_video_ids(source_dir)
         log.info(
-            "youtube_transcripts: %s — channel=%s, already_indexed=%d",
+            "youtube_transcripts: %s — mode=%s, already_indexed=%d",
             source.name,
-            source.channel_url,
+            "search" if source.search_query else "channel",
             len(seen),
         )
 
@@ -163,30 +204,19 @@ class YouTubeTranscriptsSpider:
         provider_name = "notegpt"
         provider = _TRANSCRIPT_PROVIDERS[provider_name]
 
-        # 1) Enumerate channel via yt-dlp flat mode (no auth needed).
-        flat_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": "in_playlist",
-            "extractor_args": {"youtube": {"player_client": ["tv_embedded", "mweb"]}},
-        }
+        # 1) Enumerate via yt-dlp flat mode (no auth needed).
+        # In search mode the max_results cap goes INTO the ytsearchN prefix so
+        # we don't waste an enumeration. The spider-level max_records still
+        # applies for incremental + length-filtered pending list below.
+        search_n = source.max_records or 25
         try:
-            with yt_dlp.YoutubeDL(flat_opts) as ydl:
-                channel_info = ydl.extract_info(source.channel_url, download=False)
+            videos = enumerate_videos(
+                channel_url=source.channel_url,
+                search_query=source.search_query,
+                max_results=search_n,
+            )
         except yt_dlp.utils.DownloadError as e:
-            raise RuntimeError(f"channel enumeration failed: {str(e)[:200]}") from e
-
-        entries = channel_info.get("entries") or []
-        videos: list[dict] = []
-        for e in entries:
-            if not e:
-                continue
-            if e.get("_type") == "playlist":
-                for sub in (e.get("entries") or []):
-                    if sub:
-                        videos.append(sub)
-            else:
-                videos.append(e)
+            raise RuntimeError(f"enumeration failed: {str(e)[:200]}") from e
         log.info("youtube_transcripts: enumerated %d videos", len(videos))
 
         # 2) Filter by length + already-fetched.

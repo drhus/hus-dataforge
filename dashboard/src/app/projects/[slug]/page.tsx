@@ -5,6 +5,7 @@ import { ConfigEditor } from "./config-editor";
 import { ExpandSearchButton } from "./expand-search-button";
 import { JobsPanel } from "./jobs-panel";
 import { SubjectEpubButton } from "./subject-epub-button";
+import { YouTubeSearchButton } from "./youtube-search-button";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ export default async function ProjectDetail({
           >
             + Add source
           </Link>
+          <YouTubeSearchButton project={project.slug} />
           <Link
             href={`/projects/${project.slug}/rules`}
             className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"

@@ -222,6 +222,24 @@ export const api = {
       filter_min_arabic_ratio: number;
       _stats: Record<string, unknown>;
     }>("/preview/suggest-cleanup", { method: "POST", body: JSON.stringify({ samples }) }),
+  youtubeSearch: (query: string, max_results = 25) =>
+    req<{
+      query: string;
+      count: number;
+      results: {
+        video_id: string;
+        title: string;
+        duration: number | null;
+        channel: string | null;
+        channel_url: string | null;
+        view_count: number | null;
+        thumbnail: string | null;
+        url: string;
+      }[];
+    }>("/preview/youtube-search", {
+      method: "POST",
+      body: JSON.stringify({ query, max_results }),
+    }),
   discoverSources: (
     name: string,
     aliases: string[] = [],
